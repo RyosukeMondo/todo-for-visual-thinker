@@ -9,6 +9,7 @@ import type { TodoRepository, RelationshipRepository } from '@core/ports'
 import {
   CreateRelationship,
   CreateTodo,
+  DeleteRelationship,
   DeleteTodo,
   ListRelationships,
   ListTodos,
@@ -29,6 +30,7 @@ export type CliRuntime = Readonly<{
   listTodos: ListTodos
   listRelationships: ListRelationships
   deleteTodo: DeleteTodo
+  deleteRelationship: DeleteRelationship
   updateTodo: UpdateTodo
   createRelationship: CreateRelationship
   shutdown: () => void
@@ -51,6 +53,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const listTodos = new ListTodos({ repository })
   const listRelationships = new ListRelationships({ repository: relationships })
   const deleteTodo = new DeleteTodo({ repository })
+  const deleteRelationship = new DeleteRelationship({ repository: relationships })
   const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
   const createRelationship = new CreateRelationship({
     relationships,
@@ -66,6 +69,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     listTodos,
     listRelationships,
     deleteTodo,
+    deleteRelationship,
     updateTodo,
     createRelationship,
     shutdown: () => db.close(),
