@@ -118,16 +118,20 @@ log "  Log file: $LOG_FILE"
 echo ""
 
 # Validation
-if [ ! -f "$TASKS_FILE" ]; then
-    log "❌ Error: tasks.md not found at $TASKS_FILE" "$RED"
-    log "Please create the spec first with tasks to implement." "$RED"
-    exit 1
-fi
-
 if [ ! -f "$PROJECT_ROOT/.spec-workflow/steering/product.md" ]; then
     log "❌ Error: Steering documents not found" "$RED"
     log "Please ensure product.md, design.md, and tech.md exist in .spec-workflow/steering/" "$RED"
     exit 1
+fi
+
+# Check if tasks.md exists (optional - can work in steering-driven mode)
+if [ ! -f "$TASKS_FILE" ]; then
+    log "⚠️  tasks.md not found - running in steering-driven mode" "$YELLOW"
+    log "Will work directly from steering documents (product.md, design.md, tech.md)" "$YELLOW"
+    STEERING_DRIVEN=true
+else
+    log "✓ tasks.md found - running in task-driven mode" "$GREEN"
+    STEERING_DRIVEN=false
 fi
 
 # Check if Codex is available
@@ -156,12 +160,28 @@ Load these files to understand the project:
 - `.spec-workflow/steering/tech.md` - Complete technical architecture and standards
 - `.spec-workflow/specs/{SPEC_NAME}/tasks.md` - Current task list
 
-### 2. Find Next Task
+### 2. Determine What to Implement
+
+**If tasks.md exists:**
 - Look for first task marked `[ ]` (pending) in tasks.md
 - If NO pending tasks exist:
   * Compare implemented features vs product.md Phase 1 requirements
   * If ALL Phase 1 complete: Exit code 99 (project done)
-  * If gaps exist: Exit code 2 (request human review for new tasks)
+  * If gaps exist: Generate new tasks based on steering documents OR exit code 2
+
+**If tasks.md does NOT exist (steering-driven mode):**
+- Read product.md to identify Phase 1 requirements
+- Compare with current implementation (check existing files in src/)
+- Identify ONE atomic feature/component that needs implementation
+- Prioritize based on:
+  1. Core domain models and business logic first
+  2. Infrastructure (database, repositories) second
+  3. CLI interface third
+  4. Web UI fourth
+- If Phase 1 complete: Exit code 99
+- If you cannot determine what to implement: Exit code 2 (human needed)
+
+**Important:** Work on ONE atomic, deployable piece of functionality at a time.
 
 ### 3. Implement Task
 Follow tech.md standards strictly:
@@ -205,7 +225,7 @@ git commit -m "$(cat <<'COMMIT_MSG'
 
 <detailed explanation of changes and rationale>
 
-Task: <task-id from tasks.md>
+Task: <task-id from tasks.md OR feature from product.md>
 Coverage: <percentage>%
 Files: <list of key files changed>
 
@@ -216,9 +236,10 @@ COMMIT_MSG
 
 Commit types: feat, fix, refactor, test, docs, chore
 
-### 7. Update Task Status
-- Mark completed task with `[x]` in tasks.md
+### 7. Update Task Status (if using tasks.md)
+- If tasks.md exists: Mark completed task with `[x]`
 - Commit the tasks.md update separately
+- If steering-driven mode: Skip this step (task tracking is implicit)
 
 ### 8. Exit with Appropriate Code
 - **0**: Success - task completed, continue to next
@@ -283,21 +304,35 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     log "═══════════════════════════════════════════════════════════" "$BLUE"
     echo ""
 
-    # Check pending tasks count
-    PENDING_COUNT=$(grep -c "^- \[ \]" "$TASKS_FILE" 2>/dev/null || echo "0")
-    IN_PROGRESS_COUNT=$(grep -c "^- \[-\]" "$TASKS_FILE" 2>/dev/null || echo "0")
-    COMPLETED_COUNT=$(grep -c "^- \[x\]" "$TASKS_FILE" 2>/dev/null || echo "0")
+    # Check pending tasks count (if using tasks.md)
+    if [ "$STEERING_DRIVEN" = false ]; then
+        PENDING_COUNT=$(grep -c "^- \[ \]" "$TASKS_FILE" 2>/dev/null || echo "0")
+        IN_PROGRESS_COUNT=$(grep -c "^- \[-\]" "$TASKS_FILE" 2>/dev/null || echo "0")
+        COMPLETED_COUNT=$(grep -c "^- \[x\]" "$TASKS_FILE" 2>/dev/null || echo "0")
 
-    log "📋 Task Status:" "$BLUE"
-    log "  Pending: $PENDING_COUNT"
-    log "  In Progress: $IN_PROGRESS_COUNT"
-    log "  Completed: $COMPLETED_COUNT"
-    echo ""
+        log "📋 Task Status:" "$BLUE"
+        log "  Pending: $PENDING_COUNT"
+        log "  In Progress: $IN_PROGRESS_COUNT"
+        log "  Completed: $COMPLETED_COUNT"
+        echo ""
 
-    if [ "$PENDING_COUNT" -eq 0 ] && [ "$IN_PROGRESS_COUNT" -eq 0 ]; then
-        log "🎉 No pending tasks! Checking if project is complete..." "$GREEN"
-        EXIT_CODE=99
+        if [ "$PENDING_COUNT" -eq 0 ] && [ "$IN_PROGRESS_COUNT" -eq 0 ]; then
+            log "🎉 No pending tasks! Checking if project is complete..." "$GREEN"
+            EXIT_CODE=99
+        fi
     else
+        log "📋 Mode: Steering-driven (working from product.md directly)" "$BLUE"
+        echo ""
+        PENDING_COUNT=0
+        IN_PROGRESS_COUNT=0
+        COMPLETED_COUNT=0
+    fi
+
+    # Continue if there are tasks or in steering-driven mode
+    if [ "$STEERING_DRIVEN" = false ] && [ "$PENDING_COUNT" -eq 0 ] && [ "$IN_PROGRESS_COUNT" -eq 0 ]; then
+        # Already set EXIT_CODE=99 above
+        :
+    elif [ "$STEERING_DRIVEN" = true ] || [ "$PENDING_COUNT" -gt 0 ] || [ "$IN_PROGRESS_COUNT" -gt 0 ]; then
         # Prepare prompt with substitutions
         PROMPT="${PROMPT_TEMPLATE//\{ITERATION\}/$ITERATION}"
         PROMPT="${PROMPT//\{MAX_ITERATIONS\}/$MAX_ITERATIONS}"

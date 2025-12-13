@@ -17,13 +17,15 @@ Main script for running autonomous development sessions using Codex.
    codex e --dangerously-bypass-approvals-and-sandbox --model gpt-5.1-codex "Hello, Codex!"
    ```
 
-2. **Steering documents created**
-   - `.spec-workflow/steering/product.md`
-   - `.spec-workflow/steering/design.md`
-   - `.spec-workflow/steering/tech.md`
+2. **Steering documents created (REQUIRED)**
+   - `.spec-workflow/steering/product.md` - Product vision and requirements
+   - `.spec-workflow/steering/design.md` - UI/UX guidelines
+   - `.spec-workflow/steering/tech.md` - Technical architecture
 
-3. **Spec with tasks created**
+3. **Tasks file (OPTIONAL)**
    - `.spec-workflow/specs/mvp-foundation/tasks.md` (or your spec name)
+   - If tasks.md exists: Works in **task-driven mode** (picks up tasks sequentially)
+   - If tasks.md missing: Works in **steering-driven mode** (determines work from product.md)
 
 ### Quick Start
 
@@ -90,6 +92,68 @@ The script handles these exit codes from Codex:
 - **1**: Error - quality gates failed or unclear requirement (escalates to human)
 - **2**: Checkpoint reached - pauses for human review
 - **99**: Project complete - all Phase 1 tasks done, ready for UAT
+
+### Operating Modes
+
+The script supports two modes of operation:
+
+#### Task-Driven Mode (with tasks.md)
+
+When `.spec-workflow/specs/mvp-foundation/tasks.md` exists:
+- Picks up tasks sequentially from the task list
+- Marks tasks as completed `[x]` when done
+- Provides clear progress tracking
+- Best for: Well-defined projects with explicit task breakdowns
+
+**Example task list:**
+```markdown
+## Core Features
+- [ ] 1.1 Implement Todo entity
+- [ ] 1.2 Create repository interface
+- [x] 1.3 Setup database schema
+```
+
+#### Steering-Driven Mode (without tasks.md)
+
+When tasks.md is missing or all tasks are complete:
+- Reads product.md to understand Phase 1 requirements
+- Compares current implementation with requirements
+- Autonomously determines next atomic feature to implement
+- Prioritizes: Domain → Infrastructure → CLI → Web UI
+- Best for: Exploratory development or when requirements are in steering docs
+
+**How it works:**
+1. Reads product.md Phase 1 requirements
+2. Inspects existing src/ files to see what's implemented
+3. Identifies gaps (e.g., "No Todo entity exists yet")
+4. Implements ONE atomic feature
+5. Commits and moves to next gap
+
+**Example workflow:**
+```bash
+# Remove or rename tasks.md to enable steering-driven mode
+mv .spec-workflow/specs/mvp-foundation/tasks.md tasks.md.backup
+
+# Run autonomous dev - it will work from product.md
+./scripts/autonomous-dev.sh
+
+# The AI will:
+# 1. Read product.md Phase 1: "Todo list with visual properties"
+# 2. Check src/core/domain/ - finds it empty
+# 3. Implements Todo entity with color, icon properties
+# 4. Commits and continues
+```
+
+**Benefits:**
+- No need to write detailed task breakdowns upfront
+- AI determines optimal implementation order
+- Adapts to steering document changes automatically
+- Focuses on delivering product requirements
+
+**Trade-offs:**
+- Less predictable task sequence
+- Harder to track specific progress
+- Requires well-written product.md with clear Phase 1 requirements
 
 ### Checkpoints
 
