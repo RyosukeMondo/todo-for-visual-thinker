@@ -1,8 +1,14 @@
 import { TodoNotFoundError, ValidationError } from '@core/errors'
-import type { TodoRepository } from '@core/ports'
+import type {
+  RelationshipRepository,
+  TodoRepository,
+} from '@core/ports'
+
+type RelationshipCleanupPort = Pick<RelationshipRepository, 'deleteByTodoId'>
 
 export type DeleteTodoDependencies = Readonly<{
   repository: TodoRepository
+  relationships: RelationshipCleanupPort
 }>
 
 export type DeleteTodoInput = Readonly<{
@@ -25,11 +31,11 @@ export class DeleteTodo {
       if (!singleId) {
         throw new ValidationError('Unexpected empty todo identifier set')
       }
-      await this.deleteSingle(singleId)
-      return
-    }
+    await this.deleteSingle(singleId)
+    return
+  }
 
-    await this.deleteMany(identifiers)
+  await this.deleteMany(identifiers)
   }
 
   private async deleteSingle(id: string): Promise<void> {
@@ -37,7 +43,10 @@ export class DeleteTodo {
     if (!todo) {
       throw new TodoNotFoundError(id)
     }
-    await this.deps.repository.delete(id)
+    await Promise.all([
+      this.deps.repository.delete(id),
+      this.deps.relationships.deleteByTodoId(id),
+    ])
   }
 
   private async deleteMany(ids: string[]): Promise<void> {
@@ -47,6 +56,9 @@ export class DeleteTodo {
       throw new TodoNotFoundError(missing)
     }
     await this.deps.repository.deleteMany(ids)
+    await Promise.all(
+      ids.map((id) => this.deps.relationships.deleteByTodoId(id)),
+    )
   }
 
   private normalizeIds(ids: string | string[]): string[] {

@@ -54,7 +54,10 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   })
   const listTodos = new ListTodos({ repository })
   const listRelationships = new ListRelationships({ repository: relationships })
-  const deleteTodo = new DeleteTodo({ repository })
+  const deleteTodo = new DeleteTodo({
+    repository,
+    relationships,
+  })
   const deleteRelationship = new DeleteRelationship({ repository: relationships })
   const updateRelationship = new UpdateRelationship({ repository: relationships })
   const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
