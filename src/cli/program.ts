@@ -5,6 +5,7 @@ import type { CliIO } from './io'
 import { defaultIO } from './io'
 import { registerAddTodoCommand } from './commands/addTodo'
 import { registerListTodosCommand } from './commands/listTodos'
+import { registerDeleteTodosCommand } from './commands/deleteTodos'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -19,6 +20,7 @@ export const buildCliProgram = (
 
   registerAddTodoCommand(program, { createTodo: runtime.createTodo }, io)
   registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
+  registerDeleteTodosCommand(program, { deleteTodo: runtime.deleteTodo }, io)
 
   return program
 }
