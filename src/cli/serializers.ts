@@ -1,4 +1,5 @@
 import type { Todo } from '@core/domain/Todo'
+import type { Relationship } from '@core/domain/Relationship'
 import { DomainError } from '@core/errors'
 
 export type SerializedTodo = Omit<
@@ -23,6 +24,25 @@ export const serializeTodo = (todo: Todo): SerializedTodo => {
     createdAt: props.createdAt.toISOString(),
     updatedAt: props.updatedAt.toISOString(),
     completedAt: props.completedAt?.toISOString(),
+  }
+}
+
+export type SerializedRelationship = Omit<
+  ReturnType<Relationship['toJSON']>,
+  'createdAt' | 'updatedAt'
+> & {
+  createdAt: string
+  updatedAt: string
+}
+
+export const serializeRelationship = (
+  relationship: Relationship,
+): SerializedRelationship => {
+  const props = relationship.toJSON()
+  return {
+    ...props,
+    createdAt: props.createdAt.toISOString(),
+    updatedAt: props.updatedAt.toISOString(),
   }
 }
 

@@ -4,8 +4,15 @@ import { mkdirSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 
 import { SQLiteTodoRepository } from '@core/adapters/SQLiteTodoRepository'
-import type { TodoRepository } from '@core/ports'
-import { CreateTodo, DeleteTodo, ListTodos, UpdateTodo } from '@core/usecases'
+import { SQLiteRelationshipRepository } from '@core/adapters/SQLiteRelationshipRepository'
+import type { TodoRepository, RelationshipRepository } from '@core/ports'
+import {
+  CreateRelationship,
+  CreateTodo,
+  DeleteTodo,
+  ListTodos,
+  UpdateTodo,
+} from '@core/usecases'
 
 export type RuntimeOverrides = Readonly<{
   dbPath?: string
@@ -16,10 +23,12 @@ export type RuntimeOverrides = Readonly<{
 
 export type CliRuntime = Readonly<{
   repository: TodoRepository
+  relationships: RelationshipRepository
   createTodo: CreateTodo
   listTodos: ListTodos
   deleteTodo: DeleteTodo
   updateTodo: UpdateTodo
+  createRelationship: CreateRelationship
   shutdown: () => void
 }>
 
@@ -31,6 +40,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const openDatabase = overrides.databaseFactory ?? ((path: string) => new Database(path))
   const db = openDatabase(dbPath)
   const repository = new SQLiteTodoRepository(db)
+  const relationships = new SQLiteRelationshipRepository(db)
   const createTodo = new CreateTodo({
     repository,
     idGenerator: overrides.idGenerator ?? randomUUID,
@@ -39,13 +49,21 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const listTodos = new ListTodos({ repository })
   const deleteTodo = new DeleteTodo({ repository })
   const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
+  const createRelationship = new CreateRelationship({
+    relationships,
+    todos: repository,
+    idGenerator: overrides.idGenerator ?? randomUUID,
+    clock: overrides.clock,
+  })
 
   return {
     repository,
+    relationships,
     createTodo,
     listTodos,
     deleteTodo,
     updateTodo,
+    createRelationship,
     shutdown: () => db.close(),
   }
 }
