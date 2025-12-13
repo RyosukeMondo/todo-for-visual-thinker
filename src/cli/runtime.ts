@@ -13,6 +13,7 @@ import {
   DeleteTodo,
   ListRelationships,
   ListTodos,
+  UpdateRelationship,
   UpdateTodo,
 } from '@core/usecases'
 
@@ -31,6 +32,7 @@ export type CliRuntime = Readonly<{
   listRelationships: ListRelationships
   deleteTodo: DeleteTodo
   deleteRelationship: DeleteRelationship
+  updateRelationship: UpdateRelationship
   updateTodo: UpdateTodo
   createRelationship: CreateRelationship
   shutdown: () => void
@@ -54,6 +56,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const listRelationships = new ListRelationships({ repository: relationships })
   const deleteTodo = new DeleteTodo({ repository })
   const deleteRelationship = new DeleteRelationship({ repository: relationships })
+  const updateRelationship = new UpdateRelationship({ repository: relationships })
   const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
   const createRelationship = new CreateRelationship({
     relationships,
@@ -70,6 +73,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     listRelationships,
     deleteTodo,
     deleteRelationship,
+    updateRelationship,
     updateTodo,
     createRelationship,
     shutdown: () => db.close(),

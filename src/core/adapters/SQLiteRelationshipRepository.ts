@@ -81,7 +81,9 @@ export class SQLiteRelationshipRepository implements RelationshipRepository {
       .prepare(
         `SELECT * FROM ${this.tableName} WHERE ${clauses.join(' AND ')} LIMIT 1`,
       )
-      .get({ fromId, toId, type }) as RelationshipRow | undefined
+      .get({ fromId, toId, type }) as
+      | RelationshipRow
+      | undefined
     return row ? this.fromRow(row) : null
   }
 
