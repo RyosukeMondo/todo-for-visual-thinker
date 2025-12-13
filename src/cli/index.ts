@@ -1,27 +1,28 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander'
-import chalk from 'chalk'
+import { buildCliProgram } from './program'
+import { createRuntime } from './runtime'
+import { defaultIO, writeJson } from './io'
 
-const program = new Command()
+const runtime = createRuntime()
+const io = defaultIO
+const program = buildCliProgram(runtime, io)
 
-program
-  .name('todo-visual-thinker')
-  .description('Neuroscience-backed todo list for visual thinkers')
-  .version('0.1.0')
+const main = async (): Promise<void> => {
+  try {
+    await program.parseAsync()
+  } catch (error) {
+    writeJson(io.stderr, {
+      success: false,
+      error: {
+        code: 'CLI_RUNTIME_ERROR',
+        message: error instanceof Error ? error.message : 'CLI failed unexpectedly',
+      },
+    })
+    process.exitCode = 1
+  } finally {
+    runtime.shutdown()
+  }
+}
 
-program
-  .command('list')
-  .description('List all todos')
-  .action(() => {
-    console.log(chalk.blue('📋 Todo list (coming soon)'))
-  })
-
-program
-  .command('add <task>')
-  .description('Add a new todo')
-  .action((task: string) => {
-    console.log(chalk.green(`✅ Added: ${task}`))
-  })
-
-program.parse()
+void main()
