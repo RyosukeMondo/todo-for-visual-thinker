@@ -75,10 +75,18 @@ fi
 # Configuration
 MAX_ITERATIONS=${MAX_ITERATIONS:-50}
 CHECKPOINT_INTERVAL=${CHECKPOINT_INTERVAL:-10}
-SPEC_NAME=${SPEC_NAME:-"mvp-foundation"}
+SPEC_NAME=${SPEC_NAME:-""}  # Empty means steering-driven mode
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SPEC_DIR="$PROJECT_ROOT/.spec-workflow/specs/$SPEC_NAME"
-TASKS_FILE="$SPEC_DIR/tasks.md"
+
+# Only set SPEC_DIR and TASKS_FILE if SPEC_NAME is provided
+if [ -n "$SPEC_NAME" ]; then
+    SPEC_DIR="$PROJECT_ROOT/.spec-workflow/specs/$SPEC_NAME"
+    TASKS_FILE="$SPEC_DIR/tasks.md"
+else
+    SPEC_DIR=""
+    TASKS_FILE=""
+fi
+
 LOG_FILE="$PROJECT_ROOT/autonomous-dev.log"
 
 # Colors for output
@@ -112,7 +120,11 @@ echo ""
 log "📊 Configuration:" "$BLUE"
 log "  Max iterations: $MAX_ITERATIONS"
 log "  Checkpoint interval: $CHECKPOINT_INTERVAL"
-log "  Spec: $SPEC_NAME"
+if [ -n "$SPEC_NAME" ]; then
+    log "  Spec: $SPEC_NAME"
+else
+    log "  Mode: Steering-driven (no spec)" "$GREEN"
+fi
 log "  Project root: $PROJECT_ROOT"
 log "  Log file: $LOG_FILE"
 echo ""
@@ -124,14 +136,18 @@ if [ ! -f "$PROJECT_ROOT/.spec-workflow/steering/product.md" ]; then
     exit 1
 fi
 
-# Check if tasks.md exists (optional - can work in steering-driven mode)
-if [ ! -f "$TASKS_FILE" ]; then
+# Determine mode based on SPEC_NAME and tasks.md existence
+if [ -z "$SPEC_NAME" ]; then
+    log "✓ Running in steering-driven mode (no spec name provided)" "$GREEN"
+    log "Will work directly from steering documents (product.md, design.md, tech.md)" "$GREEN"
+    STEERING_DRIVEN=true
+elif [ -n "$TASKS_FILE" ] && [ -f "$TASKS_FILE" ]; then
+    log "✓ tasks.md found - running in task-driven mode" "$GREEN"
+    STEERING_DRIVEN=false
+else
     log "⚠️  tasks.md not found - running in steering-driven mode" "$YELLOW"
     log "Will work directly from steering documents (product.md, design.md, tech.md)" "$YELLOW"
     STEERING_DRIVEN=true
-else
-    log "✓ tasks.md found - running in task-driven mode" "$GREEN"
-    STEERING_DRIVEN=false
 fi
 
 # Check if Codex is available
@@ -151,6 +167,8 @@ You are in autonomous development mode for "Todo for Visual Thinker".
 ## Your Mission
 Complete ONE atomic task following strict quality standards, then exit.
 
+**CRITICAL**: You MUST implement actual code and make a git commit. Analysis-only iterations are NOT acceptable. Every iteration must produce tangible code changes.
+
 ## Process
 
 ### 1. Read Context (Required)
@@ -158,7 +176,7 @@ Load these files to understand the project:
 - `.spec-workflow/steering/product.md` - Product vision, scope, roadmap
 - `.spec-workflow/steering/design.md` - UI/UX system, accessibility guidelines
 - `.spec-workflow/steering/tech.md` - Complete technical architecture and standards
-- `.spec-workflow/specs/{SPEC_NAME}/tasks.md` - Current task list
+{TASKS_MD_LINE}
 
 ### 2. Determine What to Implement
 
@@ -173,11 +191,26 @@ Load these files to understand the project:
 - Read product.md to identify Phase 1 requirements
 - Compare with current implementation (check existing files in src/)
 - Identify ONE atomic feature/component that needs implementation
-- Prioritize based on:
-  1. Core domain models and business logic first
-  2. Infrastructure (database, repositories) second
-  3. CLI interface third
-  4. Web UI fourth
+- **Implementation priority order:**
+  1. **Domain entities** (src/core/domain/) - Todo entity, value objects
+  2. **Repository interfaces** (src/core/ports/) - ITodoRepository interface
+  3. **Use cases** (src/core/usecases/) - CreateTodo, ListTodos, etc.
+  4. **Repository implementations** (src/core/adapters/) - SQLiteTodoRepository
+  5. **CLI commands** (src/cli/) - Command handlers
+  6. **Web UI components** (src/web/) - React components
+
+**What to implement NOW:**
+- If src/core/domain/ is empty: Implement Todo entity with all properties
+- If Todo entity exists but no repository: Implement repository interface
+- If interface exists but no implementation: Implement SQLite adapter
+- If core complete but no CLI: Implement first CLI command
+- If CLI exists but no web UI: Implement first React component
+
+**CRITICAL RULES:**
+- You MUST write actual code files (not just planning)
+- You MUST include tests for what you implement
+- You MUST run quality gates and fix any failures
+- You MUST make a git commit when done
 - If Phase 1 complete: Exit code 99
 - If you cannot determine what to implement: Exit code 2 (human needed)
 
@@ -278,7 +311,7 @@ Exit code 1 (request human) when:
 
 ## Current Status
 - **Iteration**: {ITERATION} of {MAX_ITERATIONS}
-- **Spec**: {SPEC_NAME}
+- **Mode**: {MODE_STATUS}
 - **Checkpoint**: Next at iteration {NEXT_CHECKPOINT}
 
 ---
@@ -341,6 +374,17 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         PROMPT="${PROMPT//\{SPEC_NAME\}/$SPEC_NAME}"
         PROMPT="${PROMPT//\{PROJECT_ROOT\}/$PROJECT_ROOT}"
         PROMPT="${PROMPT//\{NEXT_CHECKPOINT\}/$NEXT_CHECKPOINT}"
+
+        # Add tasks.md line only if in task-driven mode
+        if [ "$STEERING_DRIVEN" = false ] && [ -n "$SPEC_NAME" ]; then
+            TASKS_MD_LINE="- \`.spec-workflow/specs/$SPEC_NAME/tasks.md\` - Current task list"
+            MODE_STATUS="Task-driven (spec: $SPEC_NAME)"
+        else
+            TASKS_MD_LINE="- *Working in steering-driven mode - no tasks.md*"
+            MODE_STATUS="Steering-driven (working from product.md directly)"
+        fi
+        PROMPT="${PROMPT//\{TASKS_MD_LINE\}/$TASKS_MD_LINE}"
+        PROMPT="${PROMPT//\{MODE_STATUS\}/$MODE_STATUS}"
 
         # Save prompt to temp file for debugging
         PROMPT_FILE="/tmp/autonomous-dev-prompt-$ITERATION.md"
