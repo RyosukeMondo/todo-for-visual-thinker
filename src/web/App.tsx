@@ -1,8 +1,9 @@
-import type { TaskCardProps } from './components'
-import { TaskCard } from './components'
+import type { TaskBoardTask } from './components'
+import { TaskBoard } from './components'
 
-const sampleTodos: TaskCardProps[] = [
+const sampleTodos: TaskBoardTask[] = [
   {
+    id: 'todo-001',
     title: 'Map the launch journey',
     description:
       'Sketch the key milestones and dependencies for the v1 product launch to anchor the spatial board.',
@@ -15,6 +16,7 @@ const sampleTodos: TaskCardProps[] = [
     isSelected: true,
   },
   {
+    id: 'todo-002',
     title: 'Design visual palette',
     description:
       'Validate the color semantics and iconography that reduce cognitive load for visual thinkers.',
@@ -26,6 +28,7 @@ const sampleTodos: TaskCardProps[] = [
     position: { x: -120, y: 40 },
   },
   {
+    id: 'todo-003',
     title: 'Prototype infinite canvas',
     description:
       'Create an interactive slice of the canvas experience with zoom, pan, and clustering.',
@@ -55,27 +58,8 @@ function App() {
         </header>
 
         <main className="mx-auto max-w-6xl space-y-8">
-          <section className="rounded-3xl bg-white/90 p-6 shadow-xl shadow-primary-500/5">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl space-y-3">
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  Visual task cards showcase cognitive cues
-                </h2>
-                <p className="text-gray-600">
-                  Each card encodes priority, category, status, and spatial context so visual thinkers can scan work at a glance.
-                </p>
-              </div>
-              <div className="inline-flex items-center gap-3 rounded-full bg-primary-50 px-4 py-2 text-sm text-primary-700">
-                <span className="text-lg">⚡</span>
-                <span>Now powered by the first interactive TaskCard component.</span>
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {sampleTodos.map((todo) => (
-                <TaskCard key={todo.title} {...todo} />
-              ))}
-            </div>
+          <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
+            <TaskBoard tasks={sampleTodos} selectedId="todo-001" />
           </section>
         </main>
       </div>
