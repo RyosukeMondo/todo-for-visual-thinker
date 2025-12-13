@@ -129,13 +129,13 @@ ls -lt /tmp/autonomous-dev-prompt-*.md | head -5
 
 ### Troubleshooting
 
-#### Claude CLI not found
+#### Codex not found
 ```bash
-# Install Claude CLI or check PATH
-which claude
+# Check if Codex is installed
+which codex
 
 # Verify it works
-claude -p "test" --model sonnet --dangerously-skip-permissions
+codex e --dangerously-bypass-approvals-and-sandbox --model gpt-5.1-codex "test"
 ```
 
 #### Tasks not found
@@ -176,9 +176,10 @@ Reduce max iterations or increase checkpoint frequency:
 
 ### Model Selection Guide
 
-- **haiku**: Fast, simple tasks (refactoring, simple features)
-- **sonnet**: Standard tasks, good balance (most features)
-- **opus**: Complex tasks requiring deep reasoning (architecture)
+- **gpt-5.1-codex-mini**: Fast, simple tasks (refactoring, simple features, 3-5 min per task)
+- **gpt-5.1-codex**: Standard tasks, good balance (most features, 5-10 min per task)
+- **gpt-5.1-codex-max**: Complex tasks requiring deep reasoning (architecture, 10-20 min per task)
+- **gpt-5-codex**: Legacy model, not recommended for new projects
 
 ### Tips
 
@@ -210,14 +211,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Claude CLI
+      - name: Setup Codex
         run: |
-          # Install Claude CLI
+          # Install Codex CLI
           # Configure with API key from secrets
 
       - name: Run autonomous development
         run: |
-          ./scripts/autonomous-dev.sh -i 10 -c 5 -m sonnet
+          ./scripts/autonomous-dev.sh -i 10 -c 5 -m gpt-5.1-codex
 
       - name: Create PR if changes
         if: success()
