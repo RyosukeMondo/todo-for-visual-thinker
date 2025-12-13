@@ -8,6 +8,7 @@ import { registerListTodosCommand } from './commands/listTodos'
 import { registerDeleteTodosCommand } from './commands/deleteTodos'
 import { registerUpdateTodoCommand } from './commands/updateTodo'
 import { registerAddRelationshipCommand } from './commands/addRelationship'
+import { registerListRelationshipsCommand } from './commands/listRelationships'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -27,6 +28,11 @@ export const buildCliProgram = (
   registerAddRelationshipCommand(
     program,
     { createRelationship: runtime.createRelationship },
+    io,
+  )
+  registerListRelationshipsCommand(
+    program,
+    { listRelationships: runtime.listRelationships },
     io,
   )
 

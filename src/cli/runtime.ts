@@ -10,6 +10,7 @@ import {
   CreateRelationship,
   CreateTodo,
   DeleteTodo,
+  ListRelationships,
   ListTodos,
   UpdateTodo,
 } from '@core/usecases'
@@ -26,6 +27,7 @@ export type CliRuntime = Readonly<{
   relationships: RelationshipRepository
   createTodo: CreateTodo
   listTodos: ListTodos
+  listRelationships: ListRelationships
   deleteTodo: DeleteTodo
   updateTodo: UpdateTodo
   createRelationship: CreateRelationship
@@ -47,6 +49,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     clock: overrides.clock,
   })
   const listTodos = new ListTodos({ repository })
+  const listRelationships = new ListRelationships({ repository: relationships })
   const deleteTodo = new DeleteTodo({ repository })
   const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
   const createRelationship = new CreateRelationship({
@@ -61,6 +64,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     relationships,
     createTodo,
     listTodos,
+    listRelationships,
     deleteTodo,
     updateTodo,
     createRelationship,
