@@ -3,6 +3,7 @@ import { ValidationError } from '@core/errors'
 const HEX_COLOR_REGEX = /^#([0-9a-f]{6})$/i
 const MAX_TITLE_LENGTH = 120
 const MAX_DESCRIPTION_LENGTH = 2000
+const MAX_ICON_TOKEN_LENGTH = 40
 const CANVAS_RANGE = 100_000
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
@@ -58,7 +59,7 @@ export class Todo {
       priority: input.priority ?? 3,
       category: input.category?.trim(),
       color: input.color ?? '#60a5fa',
-      icon: input.icon,
+      icon: normalizeIcon(input.icon),
       position: {
         x: input.position?.x ?? 0,
         y: input.position?.y ?? 0,
@@ -76,6 +77,7 @@ export class Todo {
       title: props.title.trim(),
       description: props.description?.trim(),
       category: props.category?.trim(),
+      icon: normalizeIcon(props.icon),
     })
   }
 
@@ -217,6 +219,18 @@ export class Todo {
     }
   }
 
+  setIcon(icon: string | undefined): void {
+    const normalized = normalizeIcon(icon)
+    if (normalized === this.props.icon) return
+    if (normalized) {
+      this.assertIcon(normalized)
+      this.props.icon = normalized
+    } else {
+      this.props.icon = undefined
+    }
+    this.touch()
+  }
+
   private touch(): void {
     this.props.updatedAt = new Date()
     this.ensureConsistency()
@@ -231,6 +245,9 @@ export class Todo {
     this.assertPriority(this.props.priority)
     this.assertColor(this.props.color)
     this.assertPosition(this.props.position)
+    if (this.props.icon) {
+      this.assertIcon(this.props.icon)
+    }
     this.assertStatus(this.props.status, this.props.completedAt)
   }
 
@@ -274,6 +291,17 @@ export class Todo {
     }
   }
 
+  private assertIcon(icon: string): void {
+    if (icon.length === 0) {
+      throw new ValidationError('Icon label cannot be empty')
+    }
+    if (icon.length > MAX_ICON_TOKEN_LENGTH) {
+      throw new ValidationError('Icon label exceeds maximum length', {
+        max: MAX_ICON_TOKEN_LENGTH,
+      })
+    }
+  }
+
   private assertPosition(position: CanvasPosition): void {
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
       throw new ValidationError('Position must be finite numbers', {
@@ -304,4 +332,10 @@ export class Todo {
       )
     }
   }
+}
+
+function normalizeIcon(icon: string | undefined): string | undefined {
+  if (!icon) return undefined
+  const trimmed = icon.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }

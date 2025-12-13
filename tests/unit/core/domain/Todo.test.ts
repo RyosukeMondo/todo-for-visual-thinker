@@ -110,6 +110,24 @@ describe('Todo visual attributes', () => {
   })
 })
 
+describe('Todo icon behavior', () => {
+  it('supports setting and clearing icon tokens', () => {
+    const todo = buildTodo()
+    todo.setIcon('  star ')
+    expect(todo.icon).toBe('star')
+
+    todo.setIcon('')
+    expect(todo.icon).toBeUndefined()
+  })
+
+  it('validates icon length limits', () => {
+    const todo = buildTodo()
+    expect(() =>
+      todo.setIcon('a'.repeat(100)),
+    ).toThrowError(ValidationError)
+  })
+})
+
 describe('Todo spatial behavior', () => {
   it('prevents moving outside canvas limits', () => {
     const todo = buildTodo()
