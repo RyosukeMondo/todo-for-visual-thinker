@@ -11,6 +11,7 @@ import { registerAddRelationshipCommand } from './commands/addRelationship'
 import { registerListRelationshipsCommand } from './commands/listRelationships'
 import { registerDeleteRelationshipsCommand } from './commands/deleteRelationships'
 import { registerUpdateRelationshipCommand } from './commands/updateRelationship'
+import { registerStatusCommand } from './commands/status'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -47,6 +48,7 @@ export const buildCliProgram = (
     { updateRelationship: runtime.updateRelationship },
     io,
   )
+  registerStatusCommand(program, { getBoardStatus: runtime.getBoardStatus }, io)
 
   return program
 }
