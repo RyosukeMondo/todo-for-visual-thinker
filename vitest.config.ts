@@ -18,6 +18,8 @@ export default defineConfig({
         '**/*.config.{js,ts}',
         '**/*.d.ts',
         '**/types/**',
+        'src/cli/**',
+        'src/web/**',
         'src/web/main.tsx',
       ],
       thresholds: {
