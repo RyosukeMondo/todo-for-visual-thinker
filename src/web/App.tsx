@@ -1,5 +1,9 @@
+import type { TodoStatus } from '@core/domain/Todo'
+
 import type { TaskBoardTask } from './components'
 import { TaskBoard } from './components'
+import { TaskFilters } from './components/TaskFilters'
+import { useTaskFilters } from './hooks/useTaskFilters'
 
 const sampleTodos: TaskBoardTask[] = [
   {
@@ -41,7 +45,18 @@ const sampleTodos: TaskBoardTask[] = [
   },
 ]
 
+const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
+
 function App() {
+  const {
+    filters,
+    filteredTasks,
+    toggleStatus,
+    toggleCategory,
+    resetCategories,
+    categories,
+  } = useTaskFilters(sampleTodos, INITIAL_STATUSES)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
       <div className="container mx-auto px-4 py-10">
@@ -58,8 +73,16 @@ function App() {
         </header>
 
         <main className="mx-auto max-w-6xl space-y-8">
+          <TaskFilters
+            statuses={INITIAL_STATUSES}
+            categories={categories}
+            value={filters}
+            onStatusToggle={toggleStatus}
+            onCategoryToggle={toggleCategory}
+            onClearCategories={resetCategories}
+          />
           <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
-            <TaskBoard tasks={sampleTodos} selectedId="todo-001" />
+            <TaskBoard tasks={filteredTasks} selectedId="todo-001" />
           </section>
         </main>
       </div>
