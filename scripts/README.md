@@ -172,6 +172,55 @@ The script automatically pauses every N iterations (default: 10) for human revie
 - Pause: Take over manually
 - Stop: Project complete or needs pivot
 
+### Circuit Breaker (Progress Detection)
+
+The script includes a git-based circuit breaker to ensure the AI is making actual progress.
+
+**How it works:**
+1. Before each iteration: Stores current git HEAD commit hash
+2. After iteration completes: Checks if HEAD commit changed
+3. If no new commits: Increments no-progress counter
+4. If 3+ iterations without commits: **Stops execution and escalates to human**
+
+**Why this matters:**
+- Prevents AI from spinning wheels without making progress
+- Detects when AI is stuck in analysis/planning without implementing
+- Catches quality gate issues preventing commits
+- Saves compute resources and time
+
+**Example scenario:**
+```bash
+Iteration 1: Commit before: abc1234, after: def5678 ✅ Progress!
+Iteration 2: Commit before: def5678, after: def5678 ⚠️  No progress (1/3)
+Iteration 3: Commit before: def5678, after: def5678 ⚠️  No progress (2/3)
+Iteration 4: Commit before: def5678, after: def5678 🛑 CIRCUIT BREAKER!
+
+╔════════════════════════════════════════════════════════╗
+║  🛑 CIRCUIT BREAKER TRIGGERED                         ║
+║  No commits for 3 iterations.                         ║
+║  AI is not making progress. Human intervention needed.║
+╚════════════════════════════════════════════════════════╝
+
+Possible causes:
+  - AI stuck in analysis loop without implementing
+  - Quality gates preventing commits
+  - Unclear requirements or tasks
+  - Technical blockers
+```
+
+**When circuit breaker triggers:**
+1. Review last prompt: `/tmp/autonomous-dev-prompt-*.md`
+2. Check AI output for errors or blockers
+3. Review quality gate failures (lint, tests, build)
+4. Clarify requirements in steering docs if needed
+5. Fix blocking issues manually
+6. Resume autonomous development
+
+**Configuration:**
+- Default threshold: 3 iterations without commits
+- Can be adjusted by editing `MAX_NO_PROGRESS` in script
+- Counter resets when progress is detected
+
 ### Monitoring Progress
 
 ```bash

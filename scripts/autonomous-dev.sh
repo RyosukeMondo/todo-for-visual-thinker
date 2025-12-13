@@ -293,6 +293,8 @@ EOF
 # Main loop
 ITERATION=0
 CONSECUTIVE_FAILURES=0
+NO_PROGRESS_COUNT=0
+MAX_NO_PROGRESS=3  # Circuit breaker: stop after 3 iterations with no commits
 
 while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     ITERATION=$((ITERATION + 1))
@@ -345,6 +347,10 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         echo "$PROMPT" > "$PROMPT_FILE"
         log "💾 Prompt saved to: $PROMPT_FILE" "$BLUE"
 
+        # Circuit breaker: Store current git commit before iteration
+        COMMIT_BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "none")
+        log "📍 Current commit: ${COMMIT_BEFORE:0:7}" "$BLUE"
+
         log "🤖 Invoking Codex (model: $CODEX_MODEL)..." "$BLUE"
         log "Command: $CODEX_CMD e $CODEX_FLAGS --model $CODEX_MODEL ${CODEX_CONFIG_OVERRIDES[*]} \"<prompt>\"" "$BLUE"
 
@@ -366,6 +372,37 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
             set -e  # Re-enable exit on error
 
             log "Codex exited with code: $EXIT_CODE" "$BLUE"
+        fi
+
+        # Circuit breaker: Check if git commit changed
+        COMMIT_AFTER=$(git rev-parse HEAD 2>/dev/null || echo "none")
+
+        if [ "$COMMIT_BEFORE" = "$COMMIT_AFTER" ]; then
+            NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
+            log "⚠️  No git commit detected - no progress made ($NO_PROGRESS_COUNT/$MAX_NO_PROGRESS)" "$YELLOW"
+
+            if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
+                echo ""
+                log "╔════════════════════════════════════════════════════════╗" "$RED"
+                log "║  🛑 CIRCUIT BREAKER TRIGGERED                         ║" "$RED"
+                log "║  No commits for $MAX_NO_PROGRESS iterations.                     ║" "$RED"
+                log "║  AI is not making progress. Human intervention needed.║" "$RED"
+                log "╚════════════════════════════════════════════════════════╝" "$RED"
+                echo ""
+                log "Possible causes:" "$YELLOW"
+                log "  - AI stuck in analysis loop without implementing" "$YELLOW"
+                log "  - Quality gates preventing commits" "$YELLOW"
+                log "  - Unclear requirements or tasks" "$YELLOW"
+                log "  - Technical blockers" "$YELLOW"
+                echo ""
+                log "Last prompt: $PROMPT_FILE" "$RED"
+                exit 1
+            fi
+        else
+            # Progress made - reset counter
+            NEW_COMMITS=$(git rev-list $COMMIT_BEFORE..$COMMIT_AFTER --count 2>/dev/null || echo "1")
+            log "✅ Progress detected: $NEW_COMMITS new commit(s) - ${COMMIT_AFTER:0:7}" "$GREEN"
+            NO_PROGRESS_COUNT=0
         fi
     fi
 
