@@ -2,15 +2,16 @@ import type { Command } from 'commander'
 
 import type {
   CanvasPosition,
-  Todo,
   TodoPriority,
   TodoStatus,
 } from '@core/domain/Todo'
-import { DomainError, ValidationError } from '@core/errors'
+import { ValidationError } from '@core/errors'
 import type { CreateTodo } from '@core/usecases'
 
 import type { CliIO } from '../io'
 import { writeJson } from '../io'
+import { serializeError, serializeTodo } from '../serializers'
+import { ALLOWED_STATUSES } from '../constants'
 
 type AddTodoDependencies = Readonly<{
   createTodo: Pick<CreateTodo, 'execute'>
@@ -27,22 +28,7 @@ type AddTodoOptions = {
   status?: string
 }
 
-type SerializedTodo = Omit<
-  ReturnType<Todo['toJSON']>,
-  'createdAt' | 'updatedAt' | 'completedAt'
-> & {
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-}
-
-type JsonError = Readonly<{
-  code: string
-  message: string
-  context?: Record<string, unknown>
-}>
-
-const ALLOWED_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
+const STATUS_VALUES: TodoStatus[] = [...ALLOWED_STATUSES]
 
 export const registerAddTodoCommand = (
   program: Command,
@@ -155,42 +141,12 @@ const parseOptionalCoordinate = (
 
 const parseOptionalStatus = (value?: string): TodoStatus | undefined => {
   if (!value) return undefined
-  if (!ALLOWED_STATUSES.includes(value as TodoStatus)) {
+  if (!STATUS_VALUES.includes(value as TodoStatus)) {
     throw new ValidationError('Status must be pending, in_progress, or completed', {
       value,
     })
   }
   return value as TodoStatus
-}
-
-const serializeTodo = (todo: Todo): SerializedTodo => {
-  const props = todo.toJSON()
-  return {
-    ...props,
-    createdAt: props.createdAt.toISOString(),
-    updatedAt: props.updatedAt.toISOString(),
-    completedAt: props.completedAt?.toISOString(),
-  }
-}
-
-const serializeError = (error: unknown): JsonError => {
-  if (error instanceof DomainError) {
-    return {
-      code: error.code,
-      message: error.message,
-      context: error.context,
-    }
-  }
-  if (error instanceof Error) {
-    return {
-      code: 'UNKNOWN_ERROR',
-      message: error.message,
-    }
-  }
-  return {
-    code: 'UNKNOWN_ERROR',
-    message: 'Unexpected CLI failure',
-  }
 }
 
 export type { AddTodoDependencies }

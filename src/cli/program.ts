@@ -2,8 +2,9 @@ import { Command } from 'commander'
 
 import type { CliRuntime } from './runtime'
 import type { CliIO } from './io'
-import { defaultIO, writeJson } from './io'
+import { defaultIO } from './io'
 import { registerAddTodoCommand } from './commands/addTodo'
+import { registerListTodosCommand } from './commands/listTodos'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -17,23 +18,7 @@ export const buildCliProgram = (
     .version('0.1.0')
 
   registerAddTodoCommand(program, { createTodo: runtime.createTodo }, io)
-  registerListPlaceholder(program, io)
+  registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
 
   return program
-}
-
-const registerListPlaceholder = (program: Command, io: CliIO): void => {
-  program
-    .command('list')
-    .description('List existing todos (coming soon)')
-    .action(() => {
-      writeJson(io.stdout, {
-        success: false,
-        error: {
-          code: 'NOT_IMPLEMENTED',
-          message: 'List command is not implemented yet',
-        },
-      })
-      process.exitCode = 1
-    })
 }
