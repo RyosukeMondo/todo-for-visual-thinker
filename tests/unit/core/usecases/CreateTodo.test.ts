@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { CreateTodo } from '@/core/usecases'
-import type { TodoRepository } from '@core/ports'
+import type { Logger, TodoRepository } from '@core/ports'
 import { ValidationError } from '@/core/errors'
+
+const fixedDate = new Date('2024-03-10T12:00:00.000Z')
 
 const buildRepository = () =>
   ({
@@ -13,20 +15,30 @@ const buildRepository = () =>
     deleteMany: vi.fn().mockResolvedValue(undefined),
   }) satisfies TodoRepository
 
-describe('CreateTodo use case', () => {
-  const fixedDate = new Date('2024-03-10T12:00:00.000Z')
+const buildLogger = (): Logger => ({
+  log: vi.fn(),
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+})
+
+const buildUseCase = (overrides: Partial<{ logger: Logger }> = {}) => {
+  const repository = buildRepository()
   const clock = vi.fn(() => fixedDate)
   const idGenerator = vi.fn(() => 'todo-001')
-  type RepositoryMock = ReturnType<typeof buildRepository>
-  let repository: RepositoryMock
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    repository = buildRepository()
+  const useCase = new CreateTodo({
+    repository,
+    idGenerator,
+    clock,
+    logger: overrides.logger,
   })
+  return { useCase, repository, clock, idGenerator }
+}
 
+describe('CreateTodo persistence', () => {
   it('persists a newly created todo with injected dependencies', async () => {
-    const useCase = new CreateTodo({ repository, idGenerator, clock })
+    const { useCase, repository, idGenerator } = buildUseCase()
 
     const todo = await useCase.execute({
       title: '   Map research journey   ',
@@ -46,16 +58,18 @@ describe('CreateTodo use case', () => {
   })
 
   it('rejects blank titles before touching the repository', async () => {
-    const useCase = new CreateTodo({ repository, idGenerator, clock })
+    const { useCase, repository } = buildUseCase()
 
     await expect(useCase.execute({ title: '   ' })).rejects.toThrow(
       ValidationError,
     )
     expect(repository.save).not.toHaveBeenCalled()
   })
+})
 
+describe('CreateTodo states', () => {
   it('supports creating todos in completed state when requested', async () => {
-    const useCase = new CreateTodo({ repository, idGenerator, clock })
+    const { useCase } = buildUseCase()
 
     const todo = await useCase.execute({
       title: 'Ship neon canvas',
@@ -64,5 +78,39 @@ describe('CreateTodo use case', () => {
 
     expect(todo.status).toBe('completed')
     expect(todo.completedAt?.toISOString()).toBe(fixedDate.toISOString())
+  })
+})
+
+describe('CreateTodo logging', () => {
+  it('logs structured metadata after persistence', async () => {
+    const logger = buildLogger()
+    const { useCase } = buildUseCase({ logger })
+
+    const todo = await useCase.execute({
+      title: 'Design palette',
+      category: 'Design',
+      priority: 5,
+    })
+
+    expect(logger.info).toHaveBeenCalledWith('todo.created', {
+      todoId: todo.id,
+      status: todo.status,
+      priority: todo.priority,
+      category: 'Design',
+    })
+  })
+
+  it('defaults category to uncategorized when none provided', async () => {
+    const logger = buildLogger()
+    const { useCase } = buildUseCase({ logger })
+
+    const todo = await useCase.execute({ title: 'Grid theme' })
+
+    expect(logger.info).toHaveBeenCalledWith('todo.created', {
+      todoId: todo.id,
+      status: todo.status,
+      priority: todo.priority,
+      category: 'uncategorized',
+    })
   })
 })

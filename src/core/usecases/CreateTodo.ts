@@ -1,7 +1,8 @@
 import { Todo } from '@core/domain/Todo'
 import { ValidationError } from '@core/errors'
-import type { TodoRepository } from '@core/ports'
+import type { Logger, TodoRepository } from '@core/ports'
 import type { CanvasPosition, TodoPriority, TodoStatus } from '@core/domain/Todo'
+import { NullLogger } from '@shared/logging'
 
 export type CreateTodoInput = Readonly<{
   title: string
@@ -18,10 +19,15 @@ export type CreateTodoDependencies = Readonly<{
   repository: TodoRepository
   idGenerator: () => string
   clock?: () => Date
+  logger?: Logger
 }>
 
 export class CreateTodo {
-  constructor(private readonly deps: CreateTodoDependencies) {}
+  private readonly logger: Logger
+
+  constructor(private readonly deps: CreateTodoDependencies) {
+    this.logger = deps.logger ?? new NullLogger()
+  }
 
   async execute(input: CreateTodoInput): Promise<Todo> {
     this.ensureValidInput(input)
@@ -39,6 +45,7 @@ export class CreateTodo {
     })
 
     await this.deps.repository.save(todo)
+    this.logCreation(todo)
     return todo
   }
 
@@ -46,5 +53,14 @@ export class CreateTodo {
     if (!input.title?.trim()) {
       throw new ValidationError('Title is required', { field: 'title' })
     }
+  }
+
+  private logCreation(todo: Todo): void {
+    this.logger.info('todo.created', {
+      todoId: todo.id,
+      status: todo.status,
+      priority: todo.priority,
+      category: todo.category ?? 'uncategorized',
+    })
   }
 }
