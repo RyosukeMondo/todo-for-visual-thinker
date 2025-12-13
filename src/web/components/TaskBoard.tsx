@@ -4,12 +4,15 @@ import {
   type WheelEvent,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from 'react'
 
 import type { CanvasPosition } from '@core/domain/Todo'
+import type { RelationshipType } from '@core/domain/Relationship'
+import { buildConnectionSegments } from './TaskBoard.connections'
 
 import { TaskCard } from './TaskCard'
 import type { TaskCardProps } from './TaskCard'
@@ -25,6 +28,14 @@ export type TaskBoardTask = TaskCardProps &
     position: CanvasPosition
   }>
 
+export type TaskBoardRelationship = Readonly<{
+  id: string
+  fromId: string
+  toId: string
+  type: RelationshipType
+  color?: string
+}>
+
 export type ViewportState = Readonly<{
   x: number
   y: number
@@ -35,6 +46,7 @@ export type TaskBoardProps = Readonly<{
   tasks: readonly TaskBoardTask[]
   selectedId?: string
   onSelect?: (taskId: string) => void
+  relationships?: readonly TaskBoardRelationship[]
   initialViewport?: Partial<ViewportState>
   onViewportChange?: (viewport: ViewportState) => void
   className?: string
@@ -52,6 +64,7 @@ export const TaskBoard = ({
   tasks,
   selectedId,
   onSelect,
+  relationships = [],
   initialViewport,
   onViewportChange,
   className,
@@ -66,6 +79,7 @@ export const TaskBoard = ({
       tasks={tasks}
       selectedId={selectedId}
       onSelect={onSelect}
+      relationships={relationships}
     />
   )
 }
@@ -88,12 +102,14 @@ const TaskBoardView = ({
   tasks,
   selectedId,
   onSelect,
+  relationships,
 }: {
   className: string
   controller: ReturnType<typeof useViewportController>
   tasks: readonly TaskBoardTask[]
   selectedId?: string
   onSelect?: (taskId: string) => void
+  relationships: readonly TaskBoardRelationship[]
 }): JSX.Element => (
   <section className={className} aria-label="Spatial task board">
     <BoardHeader
@@ -103,6 +119,7 @@ const TaskBoardView = ({
       onReset={controller.reset}
     />
     <BoardSurface controller={controller}>
+      <BoardConnections tasks={tasks} relationships={relationships} />
       <BoardNodes tasks={tasks} selectedId={selectedId} onSelect={onSelect} />
     </BoardSurface>
   </section>
@@ -201,14 +218,22 @@ const BoardSurface = ({ controller, children }: BoardSurfaceProps): JSX.Element 
   )
 }
 
-const BoardNodes = ({
-  tasks,
-  selectedId,
-  onSelect,
-}: Pick<TaskBoardProps, 'tasks' | 'selectedId' | 'onSelect'>): JSX.Element => (
+type BoardNodesProps = Readonly<{
+  tasks: readonly TaskBoardTask[]
+  selectedId?: string
+  onSelect?: (taskId: string) => void
+}>
+
+type BoardNodeButtonProps = Readonly<{
+  task: TaskBoardTask
+  isSelected: boolean
+  onSelect?: (taskId: string) => void
+}>
+
+const BoardNodes = ({ tasks, selectedId, onSelect }: BoardNodesProps): JSX.Element => (
   <div className="pointer-events-none relative h-0 w-0 -translate-x-1/2 -translate-y-1/2">
     {tasks.map((task) => (
-      <BoardNode
+      <BoardNodeButton
         key={task.id}
         task={task}
         isSelected={task.id === selectedId}
@@ -218,15 +243,86 @@ const BoardNodes = ({
   </div>
 )
 
-const BoardNode = ({
+const BoardConnections = ({ tasks, relationships }: BoardConnectionsProps): JSX.Element | null => {
+  const markerId = useId()
+  const segments = useMemo(() => buildConnectionSegments(tasks, relationships ?? []), [tasks, relationships])
+
+  if (segments.length === 0) {
+    return null
+  }
+
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      aria-hidden
+    >
+      <svg
+        width={BOARD_SIZE}
+        height={BOARD_SIZE}
+        viewBox={`0 0 ${BOARD_SIZE} ${BOARD_SIZE}`}
+        className="overflow-visible"
+      >
+        <ConnectionMarker id={`${markerId}-arrow`} />
+        {segments.map((segment) => (
+          <BoardConnectionPath
+            key={segment.id}
+            markerId={`${markerId}-arrow`}
+            segment={segment}
+          />
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+type BoardConnectionsProps = Readonly<{
+  tasks: readonly TaskBoardTask[]
+  relationships?: readonly TaskBoardRelationship[]
+}>
+
+const ConnectionMarker = ({ id }: { id: string }): JSX.Element => (
+  <defs>
+    <marker
+      id={id}
+      viewBox="0 0 12 12"
+      refX="10"
+      refY="6"
+      markerWidth="12"
+      markerHeight="12"
+      orient="auto-start-reverse"
+      markerUnits="strokeWidth"
+    >
+      <path d="M0,0 L0,12 L12,6 z" fill="currentColor" />
+    </marker>
+  </defs>
+)
+
+const BoardConnectionPath = ({
+  segment,
+  markerId,
+}: {
+  segment: ReturnType<typeof buildConnectionSegments>[number]
+  markerId: string
+}): JSX.Element => (
+  <path
+    d={segment.path}
+    stroke={segment.stroke}
+    strokeWidth={4}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    fill="none"
+    data-relationship-id={segment.id}
+    markerEnd={`url(#${markerId})`}
+    className="drop-shadow-sm"
+    strokeDasharray={segment.dasharray}
+  />
+)
+
+const BoardNodeButton = ({
   task,
   isSelected,
   onSelect,
-}: {
-  task: TaskBoardTask
-  isSelected: boolean
-  onSelect?: (id: string) => void
-}): JSX.Element => {
+}: BoardNodeButtonProps): JSX.Element => {
   const nodeStyle = useMemo(
     () => ({
       transform: `translate3d(${task.position.x}px, ${task.position.y}px, 0)` as const,

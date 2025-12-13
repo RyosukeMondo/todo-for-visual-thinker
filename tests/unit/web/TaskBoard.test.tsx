@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { TaskBoardTask } from '@/web/components'
+import type { TaskBoardRelationship, TaskBoardTask } from '@/web/components'
 import { TaskBoard } from '@/web/components'
 
 const sampleTasks: TaskBoardTask[] = [
@@ -35,7 +35,9 @@ describe('TaskBoard', () => {
     const secondary = getByText('Peripheral vision').closest('button')
     expect(secondary?.getAttribute('aria-pressed')).toBe('true')
   })
+})
 
+describe('TaskBoard interactions', () => {
   it('notifies selection changes', () => {
     const handleSelect = vi.fn()
     const { getByText } = render(
@@ -57,7 +59,6 @@ describe('TaskBoard', () => {
     fireEvent.click(getByRole('button', { name: 'Zoom out' }))
     fireEvent.click(getByRole('button', { name: 'Reset view' }))
 
-    // onViewportChange receives initial state plus three updates
     expect(handleViewport).toHaveBeenCalled()
     expect(handleViewport.mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ scale: 1 }),
@@ -83,7 +84,40 @@ describe('TaskBoard', () => {
       pointerId: 1,
     })
 
-    // Scale display is still visible (no assertion on transform due to jsdom limitations)
     expect(getByRole('button', { name: 'Reset view' })).toBeDefined()
+  })
+})
+
+describe('TaskBoard relationships', () => {
+  it('renders curved relationship connections with arrow markers', () => {
+    const relationships: TaskBoardRelationship[] = [
+      { id: 'rel-1', fromId: 'todo-1', toId: 'todo-2', type: 'depends_on' },
+    ]
+
+    const { container } = render(
+      <TaskBoard tasks={sampleTasks} relationships={relationships} />,
+    )
+
+    const path = container.querySelector('path[data-relationship-id="rel-1"]')
+    expect(path).toBeTruthy()
+    expect(path?.getAttribute('stroke')).toBe('#0284c7')
+    expect(path?.getAttribute('d')).toMatch(/^M \d+ \d+ C/)
+
+    const marker = container.querySelector('marker')
+    expect(marker).not.toBeNull()
+  })
+
+  it('ignores relationships with missing tasks', () => {
+    const relationships: TaskBoardRelationship[] = [
+      { id: 'rel-missing', fromId: 'todo-1', toId: 'missing', type: 'blocks' },
+    ]
+
+    const { container } = render(
+      <TaskBoard tasks={sampleTasks} relationships={relationships} />,
+    )
+
+    expect(
+      container.querySelector('path[data-relationship-id="rel-missing"]'),
+    ).toBeNull()
   })
 })
