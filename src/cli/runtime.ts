@@ -5,7 +5,7 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 
 import { SQLiteTodoRepository } from '@core/adapters/SQLiteTodoRepository'
 import type { TodoRepository } from '@core/ports'
-import { CreateTodo, DeleteTodo, ListTodos } from '@core/usecases'
+import { CreateTodo, DeleteTodo, ListTodos, UpdateTodo } from '@core/usecases'
 
 export type RuntimeOverrides = Readonly<{
   dbPath?: string
@@ -19,6 +19,7 @@ export type CliRuntime = Readonly<{
   createTodo: CreateTodo
   listTodos: ListTodos
   deleteTodo: DeleteTodo
+  updateTodo: UpdateTodo
   shutdown: () => void
 }>
 
@@ -37,12 +38,14 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   })
   const listTodos = new ListTodos({ repository })
   const deleteTodo = new DeleteTodo({ repository })
+  const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
 
   return {
     repository,
     createTodo,
     listTodos,
     deleteTodo,
+    updateTodo,
     shutdown: () => db.close(),
   }
 }
