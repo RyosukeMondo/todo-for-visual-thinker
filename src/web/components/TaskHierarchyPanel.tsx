@@ -6,8 +6,10 @@ import type {
   TaskBoardRelationship,
   TaskBoardTask,
 } from './TaskBoard'
-import { buildTaskHierarchy } from '../utils/taskHierarchy'
-import type { TaskHierarchyNode } from '@shared/utils/taskHierarchy'
+import {
+  buildTaskHierarchy,
+  type TaskHierarchyNode,
+} from '../utils/taskHierarchy'
 
 const STATUS_BADGES: Record<TodoStatus, { label: string; badge: string }> = {
   pending: {
@@ -43,62 +45,118 @@ export const TaskHierarchyPanel = ({
   onSelectTask,
   className,
 }: TaskHierarchyPanelProps): JSX.Element => {
+  const { hierarchy, hasTasks, hasParentLinks } = useHierarchyInsights(tasks, relationships)
+  const containerClassName = buildContainerClassName(className)
+
+  return (
+    <section className={containerClassName} aria-label="Task hierarchy panel">
+      <HierarchyHeader />
+      <HierarchyContent
+        hierarchy={hierarchy}
+        hasTasks={hasTasks}
+        hasParentLinks={hasParentLinks}
+        selectedTaskId={selectedTaskId}
+        onSelectTask={onSelectTask}
+      />
+    </section>
+  )
+}
+
+type BoardHierarchyNode = TaskHierarchyNode<TaskBoardTask>
+
+const useHierarchyInsights = (
+  tasks: readonly TaskBoardTask[],
+  relationships: readonly TaskBoardRelationship[],
+) => {
   const hierarchy = useMemo(
     () => buildTaskHierarchy(tasks, relationships),
     [tasks, relationships],
   )
   const hasTasks = tasks.length > 0
   const hasParentLinks = relationships.some((relationship) => relationship.type === 'parent_of')
-  const containerClassName = [
-    'rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-primary-500/5',
-    className,
-  ]
+  return { hierarchy, hasTasks, hasParentLinks }
+}
+
+const buildContainerClassName = (className?: string): string =>
+  ['rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-primary-500/5', className]
     .filter(Boolean)
     .join(' ')
 
+const HierarchyHeader = (): JSX.Element => (
+  <header className="space-y-1">
+    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-primary-500">
+      Task hierarchy
+    </p>
+    <h3 className="text-xl font-semibold text-gray-900">Nest thoughts for layered work</h3>
+    <p className="text-sm text-gray-500">
+      Parent-child links help visual thinkers chunk complex projects into digestible flows.
+    </p>
+  </header>
+)
+
+type HierarchyContentProps = Readonly<{
+  hierarchy: BoardHierarchyNode[]
+  hasTasks: boolean
+  hasParentLinks: boolean
+  selectedTaskId?: string
+  onSelectTask?: (taskId: string) => void
+}>
+
+const HierarchyContent = ({
+  hierarchy,
+  hasTasks,
+  hasParentLinks,
+  selectedTaskId,
+  onSelectTask,
+}: HierarchyContentProps): JSX.Element => {
+  if (!hasTasks) {
+    return <HierarchyEmptyState />
+  }
+
   return (
-    <section className={containerClassName} aria-label="Task hierarchy panel">
-      <header className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-primary-500">
-          Task hierarchy
-        </p>
-        <h3 className="text-xl font-semibold text-gray-900">
-          Nest thoughts for layered work
-        </h3>
-        <p className="text-sm text-gray-500">
-          Parent-child links help visual thinkers chunk complex projects into digestible flows.
-        </p>
-      </header>
-      {!hasTasks ? (
-        <HierarchyEmptyState />
-      ) : (
-        <>
-          <nav aria-label="Nested task relationships" className="mt-4">
-            <ol className="space-y-1" role="list">
-              {hierarchy.map((node) => (
-                <HierarchyNode
-                  key={node.id}
-                  node={node}
-                  selectedTaskId={selectedTaskId}
-                  onSelectTask={onSelectTask}
-                />
-              ))}
-            </ol>
-          </nav>
-          {!hasParentLinks && (
-            <p className="mt-4 text-xs text-gray-500">
-              Tip:{' '}
-              <code className="rounded bg-gray-100 px-2 py-0.5 font-semibold text-[0.65rem] text-gray-700">
-                pnpm cli link parent-id child-id --type parent_of
-              </code>{' '}
-              to create nested relationships.
-            </p>
-          )}
-        </>
-      )}
-    </section>
+    <>
+      <HierarchyList
+        hierarchy={hierarchy}
+        selectedTaskId={selectedTaskId}
+        onSelectTask={onSelectTask}
+      />
+      {!hasParentLinks && <HierarchyTip />}
+    </>
   )
 }
+
+const HierarchyList = ({
+  hierarchy,
+  selectedTaskId,
+  onSelectTask,
+}: {
+  hierarchy: BoardHierarchyNode[]
+  selectedTaskId?: string
+  onSelectTask?: (taskId: string) => void
+}): JSX.Element => (
+  <nav aria-label="Nested task relationships" className="mt-4">
+    <ol className="space-y-1" role="list">
+      {hierarchy.map((node) => (
+        <HierarchyNode
+          key={node.id}
+          node={node}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={onSelectTask}
+        />
+      ))}
+    </ol>
+  </nav>
+)
+
+const HierarchyTip = (): JSX.Element => (
+  <p className="mt-4 text-xs text-gray-500">
+    Tip:{' '}
+    <code className="rounded bg-gray-100 px-2 py-0.5 font-semibold text-[0.65rem] text-gray-700">
+      pnpm cli link parent-id child-id --type parent_of
+    </code>{' '}
+    to create nested relationships.
+  </p>
+)
 
 const HierarchyEmptyState = (): JSX.Element => (
   <div className="mt-6 rounded-2xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
@@ -107,7 +165,7 @@ const HierarchyEmptyState = (): JSX.Element => (
 )
 
 type HierarchyNodeProps = Readonly<{
-  node: TaskHierarchyNode
+  node: BoardHierarchyNode
   selectedTaskId?: string
   onSelectTask?: (taskId: string) => void
 }>
@@ -118,55 +176,78 @@ const HierarchyNode = ({
   onSelectTask,
 }: HierarchyNodeProps): JSX.Element => {
   const isSelected = node.id === selectedTaskId
+  return (
+    <li>
+      <HierarchyNodeButton node={node} isSelected={isSelected} onSelectTask={onSelectTask} />
+      <HierarchyChildren node={node} selectedTaskId={selectedTaskId} onSelectTask={onSelectTask} />
+    </li>
+  )
+}
+
+const HierarchyNodeButton = ({
+  node,
+  isSelected,
+  onSelectTask,
+}: {
+  node: BoardHierarchyNode
+  isSelected: boolean
+  onSelectTask?: (taskId: string) => void
+}): JSX.Element => {
   const accent = sanitizeColor(node.task.color)
   const categoryLabel = node.task.category?.trim() || 'Uncategorized'
   const badge = STATUS_BADGES[node.task.status]
 
   return (
-    <li>
-      <button
-        type="button"
-        className={buildNodeClasses(isSelected)}
-        style={{ marginLeft: node.depth * INDENT_PX }}
-        aria-pressed={isSelected}
-        onClick={() => onSelectTask?.(node.id)}
-      >
-        <span className="flex min-w-0 items-center gap-3">
-          <span
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/60 text-lg shadow-inner"
-            style={{ backgroundColor: `${accent}1A`, color: accent }}
-            aria-hidden
-          >
-            {node.task.icon ?? '•'}
-          </span>
-          <span className="min-w-0 space-y-1">
-            <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-gray-500">
-              {categoryLabel}
-            </span>
-            <span className="block truncate text-sm font-semibold text-gray-900">
-              {node.task.title}
-            </span>
-          </span>
-        </span>
+    <button
+      type="button"
+      className={buildNodeClasses(isSelected)}
+      style={{ marginLeft: node.depth * INDENT_PX }}
+      aria-pressed={isSelected}
+      onClick={() => onSelectTask?.(node.id)}
+    >
+      <span className="flex min-w-0 items-center gap-3">
         <span
-          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold ${badge.badge}`}
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/60 text-lg shadow-inner"
+          style={{ backgroundColor: `${accent}1A`, color: accent }}
+          aria-hidden
         >
-          {badge.label}
+          {node.task.icon ?? '•'}
         </span>
-      </button>
-      {node.children.length > 0 && (
-        <ol className="mt-1 space-y-1 border-l border-dashed border-gray-200 pl-3" role="list">
-          {node.children.map((child) => (
-            <HierarchyNode
-              key={child.id}
-              node={child}
-              selectedTaskId={selectedTaskId}
-              onSelectTask={onSelectTask}
-            />
-          ))}
-        </ol>
-      )}
-    </li>
+        <span className="min-w-0 space-y-1">
+          <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-gray-500">
+            {categoryLabel}
+          </span>
+          <span className="block truncate text-sm font-semibold text-gray-900">{node.task.title}</span>
+        </span>
+      </span>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold ${badge.badge}`}
+      >
+        {badge.label}
+      </span>
+    </button>
+  )
+}
+
+const HierarchyChildren = ({
+  node,
+  selectedTaskId,
+  onSelectTask,
+}: HierarchyNodeProps): JSX.Element | null => {
+  if (node.children.length === 0) {
+    return null
+  }
+  return (
+    <ol className="mt-1 space-y-1 border-l border-dashed border-gray-200 pl-3" role="list">
+      {node.children.map((child) => (
+        <HierarchyNode
+          key={child.id}
+          node={child}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={onSelectTask}
+        />
+      ))}
+    </ol>
   )
 }
 

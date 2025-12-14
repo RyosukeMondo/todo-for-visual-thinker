@@ -1,13 +1,17 @@
 import type { TaskBoardTask, TaskBoardRelationship } from '../components/TaskBoard'
+import type { TaskBoardViewport } from '../components/TaskBoardMinimap'
 import type { BoardSnapshotDTO } from '@shared/types/board'
 
 const DEFAULT_COLOR = '#6366f1'
+const MIN_SCALE = 0.6
+const MAX_SCALE = 1.8
+const BASE_VIEWPORT_SPAN = 1600
 
 export type BoardDataViewModel = Readonly<{
   tasks: TaskBoardTask[]
   relationships: TaskBoardRelationship[]
   totals: BoardSnapshotDTO['totals']
-  viewport: BoardSnapshotDTO['viewport']
+  viewport: TaskBoardViewport
 }>
 
 export const transformSnapshot = (snapshot: BoardSnapshotDTO): BoardDataViewModel => {
@@ -22,6 +26,9 @@ export const transformSnapshot = (snapshot: BoardSnapshotDTO): BoardDataViewMode
     icon: task.icon ?? undefined,
     position: task.position,
     size: task.visualSize,
+    createdAt: parseDate(task.createdAt),
+    updatedAt: parseDate(task.updatedAt),
+    completedAt: parseOptionalDate(task.completedAt),
   }))
   const colorMap = new Map(tasks.map((task) => [task.id, task.color ?? DEFAULT_COLOR]))
   const relationships = snapshot.relationships.map((relationship) => ({
@@ -35,7 +42,7 @@ export const transformSnapshot = (snapshot: BoardSnapshotDTO): BoardDataViewMode
     tasks,
     relationships,
     totals: snapshot.totals,
-    viewport: snapshot.viewport,
+    viewport: mapSnapshotViewport(snapshot.viewport),
   }
 }
 
@@ -46,4 +53,30 @@ const sanitizeColor = (candidate: string | undefined): string => {
     return candidate
   }
   return DEFAULT_COLOR
+}
+
+const parseDate = (value: string): Date => new Date(value)
+
+const parseOptionalDate = (value?: string | null): Date | undefined => {
+  if (!value) return undefined
+  return new Date(value)
+}
+
+const mapSnapshotViewport = (viewport: BoardSnapshotDTO['viewport']): TaskBoardViewport => {
+  const centerX = (viewport.x.min + viewport.x.max) / 2
+  const centerY = (viewport.y.min + viewport.y.max) / 2
+  const span = Math.max(viewport.width, viewport.height)
+  return {
+    center: { x: centerX, y: centerY },
+    scale: clampViewportScale(span),
+  }
+}
+
+const clampViewportScale = (span: number): number => {
+  if (!Number.isFinite(span) || span <= 0) {
+    return 1
+  }
+  const desired = BASE_VIEWPORT_SPAN / span
+  const normalized = Number.parseFloat(desired.toFixed(2))
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, normalized))
 }

@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MutableRefObject,
   type ReactNode,
   useCallback,
   useId,
@@ -187,7 +188,8 @@ const BoardNodeButton = ({
   isMovePending,
   viewportScale = 1,
 }: BoardNodeButtonProps): JSX.Element => {
-  const nodeStyle = useMemo(() => buildNodeTransform(task.position), [task.position.x, task.position.y])
+  const position = task.position
+  const nodeStyle = useMemo(() => buildNodeTransform(position), [position])
   const dragHandlers = useTaskDragHandlers({
     task,
     onSelect,
@@ -226,6 +228,13 @@ const buildNodeTransform = (position: CanvasPosition): CSSProperties => ({
   transform: `translate3d(${position.x}px, ${position.y}px, 0)` as const,
 })
 
+type DragState = Readonly<{
+  startX: number
+  startY: number
+  originX: number
+  originY: number
+}>
+
 const useTaskDragHandlers = ({
   task,
   onSelect,
@@ -237,14 +246,22 @@ const useTaskDragHandlers = ({
   onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
   viewportScale: number
 }) => {
-  const dragState = useRef<{
-    startX: number
-    startY: number
-    originX: number
-    originY: number
-  } | null>(null)
+  const dragState = useRef<DragState | null>(null)
+  const handleDragStart = useDragStartHandler({ task, onSelect, dragState })
+  const handleDragEnd = useDragEndHandler({ task, onMoveTask, dragState, viewportScale })
+  return { handleDragStart, handleDragEnd }
+}
 
-  const handleDragStart = useCallback(
+const useDragStartHandler = ({
+  task,
+  onSelect,
+  dragState,
+}: {
+  task: TaskBoardTask
+  onSelect?: (taskId: string) => void
+  dragState: MutableRefObject<DragState | null>
+}) =>
+  useCallback(
     (event: ReactDragEvent<HTMLButtonElement>) => {
       if (!onSelect) return
       onSelect(task.id)
@@ -257,10 +274,21 @@ const useTaskDragHandlers = ({
       }
       event.dataTransfer.setData('text/plain', task.id)
     },
-    [onSelect, task.id, task.position],
+    [dragState, onSelect, task.id, task.position.x, task.position.y],
   )
 
-  const handleDragEnd = useCallback(
+const useDragEndHandler = ({
+  task,
+  onMoveTask,
+  dragState,
+  viewportScale,
+}: {
+  task: TaskBoardTask
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  dragState: MutableRefObject<DragState | null>
+  viewportScale: number
+}) =>
+  useCallback(
     (event: ReactDragEvent<HTMLButtonElement>) => {
       if (!onMoveTask || !dragState.current) return
       const { startX, startY, originX, originY } = dragState.current
@@ -278,11 +306,8 @@ const useTaskDragHandlers = ({
         y: originY + deltaY,
       })
     },
-    [onMoveTask, task.id, viewportScale],
+    [dragState, onMoveTask, task.id, viewportScale],
   )
-
-  return { handleDragStart, handleDragEnd }
-}
 
 type BoardConnectionsProps = Readonly<{
   tasks: readonly TaskBoardTask[]

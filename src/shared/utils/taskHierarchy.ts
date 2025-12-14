@@ -34,6 +34,22 @@ export const buildTaskHierarchy = <TTask extends HierarchyTask>(
   }
 
   const targetType = (options.relationshipType ?? DEFAULT_RELATIONSHIP_TYPE).trim()
+  const context = prepareHierarchyContext(tasks, relationships, targetType)
+  return buildHierarchyForest(context)
+}
+
+type HierarchyContext<TTask extends HierarchyTask> = Readonly<{
+  tasksById: Map<string, TTask>
+  parentByChild: Map<string, string>
+  childrenByParent: Map<string, Set<string>>
+  orderedTasks: TTask[]
+}>
+
+const prepareHierarchyContext = <TTask extends HierarchyTask>(
+  tasks: readonly TTask[],
+  relationships: readonly HierarchyRelationship[],
+  targetType: string,
+): HierarchyContext<TTask> => {
   const tasksById = new Map(tasks.map((task) => [task.id, task]))
   const parentByChild = new Map<string, string>()
   const childrenByParent = new Map<string, Set<string>>()
@@ -42,57 +58,97 @@ export const buildTaskHierarchy = <TTask extends HierarchyTask>(
     if (relationship.type !== targetType) {
       return
     }
-    const parentId = relationship.fromId.trim()
-    const childId = relationship.toId.trim()
-    if (!tasksById.has(parentId) || !tasksById.has(childId)) {
-      return
-    }
-    if (parentId === childId) {
-      return
-    }
-    if (wouldCreateCycle(parentId, childId, parentByChild)) {
-      return
-    }
-
-    parentByChild.set(childId, parentId)
-    const children = childrenByParent.get(parentId) ?? new Set<string>()
-    children.add(childId)
-    childrenByParent.set(parentId, children)
+    attachRelationship(relationship, { tasksById, parentByChild, childrenByParent })
   })
 
-  const orderedTasks = [...tasks].sort(compareTasks)
-  const attached = new Set<string>()
+  return {
+    tasksById,
+    parentByChild,
+    childrenByParent,
+    orderedTasks: [...tasks].sort(compareTasks),
+  }
+}
 
-  const buildNode = (taskId: string, depth: number): TaskHierarchyNode<TTask> => {
-    const task = tasksById.get(taskId)
-    if (!task) {
-      throw new Error(`Task ${taskId} missing from hierarchy source`)
-    }
-    attached.add(taskId)
-    const childIds = [...(childrenByParent.get(taskId) ?? [])]
-    childIds.sort((a, b) => compareTasks(tasksById.get(a)!, tasksById.get(b)!))
-    return {
-      id: task.id,
-      task,
-      depth,
-      children: childIds.map((childId) => buildNode(childId, depth + 1)),
-    }
+const attachRelationship = <TTask extends HierarchyTask>(
+  relationship: HierarchyRelationship,
+  context: {
+    tasksById: Map<string, TTask>
+    parentByChild: Map<string, string>
+    childrenByParent: Map<string, Set<string>>
+  },
+): void => {
+  const parentId = relationship.fromId.trim()
+  const childId = relationship.toId.trim()
+  if (
+    !context.tasksById.has(parentId) ||
+    !context.tasksById.has(childId) ||
+    parentId === childId ||
+    wouldCreateCycle(parentId, childId, context.parentByChild)
+  ) {
+    return
   }
 
+  context.parentByChild.set(childId, parentId)
+  const children = context.childrenByParent.get(parentId) ?? new Set<string>()
+  children.add(childId)
+  context.childrenByParent.set(parentId, children)
+}
+
+const buildHierarchyForest = <TTask extends HierarchyTask>(
+  context: HierarchyContext<TTask>,
+): TaskHierarchyNode<TTask>[] => {
+  const attached = new Set<string>()
+  const forest = collectRootNodes(context, attached)
+  return attachDetachedNodes(context, attached, forest)
+}
+
+const collectRootNodes = <TTask extends HierarchyTask>(
+  context: HierarchyContext<TTask>,
+  attached: Set<string>,
+): TaskHierarchyNode<TTask>[] => {
   const forest: TaskHierarchyNode<TTask>[] = []
-  orderedTasks.forEach((task) => {
-    if (!parentByChild.has(task.id)) {
-      forest.push(buildNode(task.id, 0))
+  context.orderedTasks.forEach((task) => {
+    if (!context.parentByChild.has(task.id)) {
+      forest.push(buildNode(task.id, 0, context, attached))
     }
   })
-
-  orderedTasks.forEach((task) => {
-    if (!attached.has(task.id)) {
-      forest.push(buildNode(task.id, 0))
-    }
-  })
-
   return forest
+}
+
+const attachDetachedNodes = <TTask extends HierarchyTask>(
+  context: HierarchyContext<TTask>,
+  attached: Set<string>,
+  forest: TaskHierarchyNode<TTask>[],
+): TaskHierarchyNode<TTask>[] => {
+  context.orderedTasks.forEach((task) => {
+    if (!attached.has(task.id)) {
+      forest.push(buildNode(task.id, 0, context, attached))
+    }
+  })
+  return forest
+}
+
+const buildNode = <TTask extends HierarchyTask>(
+  taskId: string,
+  depth: number,
+  context: HierarchyContext<TTask>,
+  attached: Set<string>,
+): TaskHierarchyNode<TTask> => {
+  const task = context.tasksById.get(taskId)
+  if (!task) {
+    throw new Error(`Task ${taskId} missing from hierarchy source`)
+  }
+  attached.add(taskId)
+  const childIds = [...(context.childrenByParent.get(taskId) ?? [])]
+  childIds.sort((a, b) =>
+    compareTasks(context.tasksById.get(a)!, context.tasksById.get(b)!),
+  )
+  return {
+    id: task.id,
+    task,
+    depth,
+    children: childIds.map((childId) => buildNode(childId, depth + 1, context, attached)),
+  }
 }
 
 const wouldCreateCycle = (

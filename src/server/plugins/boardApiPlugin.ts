@@ -32,60 +32,94 @@ export const boardApiPlugin = (): Plugin => ({
 
 const createServerContext = () => {
   const runtime = createRuntime()
-  const presenter = new SnapshotPresenter()
-  const statusPresenter = new BoardStatusPresenter()
-  const createController = new CreateTodoController({
-    createTodo: runtime.createTodo,
-    listTodos: runtime.listTodos,
-    planPosition: planSpiralPosition,
-  })
-  const updateController = new UpdateTodoController({
-    updateTodo: runtime.updateTodo,
-  })
+  const presenters = createPresenters()
+  const controllers = createControllers(runtime)
 
   return {
-    handleSnapshot: async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method !== 'GET') {
-        respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
-        return
-      }
-      await handleBoardSnapshot(res, runtime, presenter)
-    },
-    handleStatus: async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method !== 'GET') {
-        respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
-        return
-      }
-      await handleBoardStatus(res, runtime, statusPresenter)
-    },
-    handleCreate: async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method !== 'POST') {
-        respondJson(res, 405, {
-          success: false,
-          error: { code: 'METHOD_NOT_ALLOWED', message: 'Only POST supported' },
-        })
-        return
-      }
-      await handleCreateTodo(req, res, createController)
-    },
-    handleUpdate: async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-      const todoId = extractTodoId(req.url)
-      if (!todoId) {
-        next()
-        return
-      }
-      if (req.method !== 'PATCH') {
-        respondJson(res, 405, {
-          success: false,
-          error: { code: 'METHOD_NOT_ALLOWED', message: 'Only PATCH supported' },
-        } satisfies UpdateTodoResultDTO)
-        return
-      }
-      await handleUpdateTodo(req, res, todoId, updateController)
-    },
+    handleSnapshot: buildSnapshotRequestHandler(runtime, presenters.snapshot),
+    handleStatus: buildStatusRequestHandler(runtime, presenters.status),
+    handleCreate: buildCreateRequestHandler(controllers.create),
+    handleUpdate: buildUpdateRequestHandler(controllers.update),
     shutdown: () => runtime.shutdown(),
   }
 }
+
+const createPresenters = () => ({
+  snapshot: new SnapshotPresenter(),
+  status: new BoardStatusPresenter(),
+})
+
+const createControllers = (runtime: ReturnType<typeof createRuntime>) => ({
+  create: new CreateTodoController({
+    createTodo: runtime.createTodo,
+    listTodos: runtime.listTodos,
+    planPosition: planSpiralPosition,
+  }),
+  update: new UpdateTodoController({
+    updateTodo: runtime.updateTodo,
+  }),
+})
+
+const buildSnapshotRequestHandler =
+  (
+    runtime: ReturnType<typeof createRuntime>,
+    presenter: SnapshotPresenter,
+  ): ((req: IncomingMessage, res: ServerResponse) => Promise<void>) =>
+  async (req, res) => {
+    if (req.method !== 'GET') {
+      respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
+      return
+    }
+    await handleBoardSnapshot(res, runtime, presenter)
+  }
+
+const buildStatusRequestHandler =
+  (
+    runtime: ReturnType<typeof createRuntime>,
+    presenter: BoardStatusPresenter,
+  ): ((req: IncomingMessage, res: ServerResponse) => Promise<void>) =>
+  async (req, res) => {
+    if (req.method !== 'GET') {
+      respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
+      return
+    }
+    await handleBoardStatus(res, runtime, presenter)
+  }
+
+const buildCreateRequestHandler =
+  (
+    controller: CreateTodoController,
+  ): ((req: IncomingMessage, res: ServerResponse) => Promise<void>) =>
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      respondJson(res, 405, {
+        success: false,
+        error: { code: 'METHOD_NOT_ALLOWED', message: 'Only POST supported' },
+      })
+      return
+    }
+    await handleCreateTodo(req, res, controller)
+  }
+
+const buildUpdateRequestHandler =
+  (
+    controller: UpdateTodoController,
+  ): ((req: IncomingMessage, res: ServerResponse, next: () => void) => Promise<void>) =>
+  async (req, res, next) => {
+    const todoId = extractTodoId(req.url)
+    if (!todoId) {
+      next()
+      return
+    }
+    if (req.method !== 'PATCH') {
+      respondJson(res, 405, {
+        success: false,
+        error: { code: 'METHOD_NOT_ALLOWED', message: 'Only PATCH supported' },
+      } satisfies UpdateTodoResultDTO)
+      return
+    }
+    await handleUpdateTodo(req, res, todoId, controller)
+  }
 
 const extractTodoId = (url?: string | null): string | undefined => {
   if (!url) return undefined
@@ -278,10 +312,10 @@ const mapOptionalPosition = (
   if (x === undefined && y === undefined) {
     return undefined
   }
-  const position: Partial<CanvasPosition> = {}
+  const position: { x?: number; y?: number } = {}
   if (x !== undefined) position.x = x
   if (y !== undefined) position.y = y
-  return position
+  return position as Partial<CanvasPosition>
 }
 
 const normalizeText = (value: unknown, field: string): string => {

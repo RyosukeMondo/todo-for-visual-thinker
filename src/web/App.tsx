@@ -15,6 +15,7 @@ import {
   TaskBoard,
   TaskHierarchyPanel,
   TaskMetricsPanel,
+  TodoList,
 } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
@@ -32,9 +33,11 @@ const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 function App() {
   const board = useBoardState()
   const status = useBoardStatus()
+  const { reload: reloadBoard } = board
+  const { reload: reloadStatus } = status
   const reloadBoardState = useCallback(async () => {
-    await Promise.all([board.reload(), status.reload()])
-  }, [board.reload, status.reload])
+    await Promise.all([reloadBoard(), reloadStatus()])
+  }, [reloadBoard, reloadStatus])
   const filters = useTaskFilters(board.tasks, INITIAL_STATUSES, board.relationships)
   const selection = useTaskSelection(filters.filteredTasks)
   const creation = useCreationWorkflow(reloadBoardState)
@@ -208,64 +211,81 @@ type LandingPageProps = Readonly<{
   statusError?: string
 }>
 
-const LandingPage = ({
+const LandingPage = (props: LandingPageProps): JSX.Element => (
+  <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
+    <div className="container mx-auto px-4 py-10">
+      <LandingHero />
+      <LandingPageContent {...props} />
+    </div>
+  </div>
+)
+
+const LandingPageContent = (props: LandingPageProps): JSX.Element => (
+  <main className="mx-auto max-w-6xl space-y-8">
+    <LandingFilterControls state={props.state} />
+    <LandingBoardAndSidebar {...props} />
+    <TaskListSection
+      tasks={props.state.filteredTasks}
+      selectedTaskId={props.selectedTaskId}
+      onSelectTask={props.onSelectTask}
+    />
+  </main>
+)
+
+const LandingFilterControls = ({ state }: { state: UseTaskFiltersResult }): JSX.Element => (
+  <TaskFilters
+    statuses={INITIAL_STATUSES}
+    categories={state.categories}
+    value={state.filters}
+    onStatusToggle={state.toggleStatus}
+    onCategoryToggle={state.toggleCategory}
+    onClearCategories={state.resetCategories}
+  />
+)
+
+const LandingBoardAndSidebar = ({
   state,
-  hoveredTaskId,
-  selectedTaskId,
   relationships,
   initialViewport,
-  onSelectTask,
+  hoveredTaskId,
   onHoverTask,
-  onCreateTodo,
-  isCreatingTodo,
-  creationError,
+  onSelectTask,
   onMoveTask,
   isMovePending,
   moveError,
+  selectedTaskId,
+  onCreateTodo,
+  isCreatingTodo,
+  creationError,
   boardStatus,
   isStatusLoading,
   statusError,
 }: LandingPageProps): JSX.Element => (
-  <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
-    <div className="container mx-auto px-4 py-10">
-      <LandingHero />
-      <main className="mx-auto max-w-6xl space-y-8">
-        <TaskFilters
-          statuses={INITIAL_STATUSES}
-          categories={state.categories}
-          value={state.filters}
-          onStatusToggle={state.toggleStatus}
-          onCategoryToggle={state.toggleCategory}
-          onClearCategories={state.resetCategories}
-        />
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
-          <TaskBoardSection
-            tasks={state.filteredTasks}
-            relationships={relationships}
-            initialViewport={initialViewport}
-            hoveredTaskId={hoveredTaskId}
-            onHoverTask={onHoverTask}
-            onSelectTask={onSelectTask}
-            onMoveTask={onMoveTask}
-            isMovePending={isMovePending}
-            moveError={moveError}
-            selectedTaskId={selectedTaskId}
-          />
-          <SidebarSection
-            tasks={state.filteredTasks}
-            relationships={relationships}
-            onCreateTodo={onCreateTodo}
-            isCreating={isCreatingTodo}
-            errorMessage={creationError}
-            boardStatus={boardStatus}
-            isStatusLoading={isStatusLoading}
-            statusError={statusError}
-            selectedTaskId={selectedTaskId}
-            onSelectTask={onSelectTask}
-          />
-        </div>
-      </main>
-    </div>
+  <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
+    <TaskBoardSection
+      tasks={state.filteredTasks}
+      relationships={relationships}
+      initialViewport={initialViewport}
+      hoveredTaskId={hoveredTaskId}
+      onHoverTask={onHoverTask}
+      onSelectTask={onSelectTask}
+      onMoveTask={onMoveTask}
+      isMovePending={isMovePending}
+      moveError={moveError}
+      selectedTaskId={selectedTaskId}
+    />
+    <SidebarSection
+      tasks={state.filteredTasks}
+      relationships={relationships}
+      onCreateTodo={onCreateTodo}
+      isCreating={isCreatingTodo}
+      errorMessage={creationError}
+      boardStatus={boardStatus}
+      isStatusLoading={isStatusLoading}
+      statusError={statusError}
+      selectedTaskId={selectedTaskId}
+      onSelectTask={onSelectTask}
+    />
   </div>
 )
 
@@ -294,6 +314,19 @@ type TaskBoardSectionProps = Readonly<{
   moveError?: string
 }>
 
+const mapInitialViewport = (
+  viewport: TaskBoardViewport | undefined,
+): { x: number; y: number; scale: number } | undefined => {
+  if (!viewport) {
+    return undefined
+  }
+  return {
+    x: -viewport.center.x,
+    y: -viewport.center.y,
+    scale: viewport.scale,
+  }
+}
+
 const TaskBoardSection = ({
   tasks,
   relationships,
@@ -320,7 +353,7 @@ const TaskBoardSection = ({
           hoverId={hoveredTaskId}
           onHover={onHoverTask}
           onSelect={onSelectTask}
-          initialViewport={initialViewport}
+          initialViewport={mapInitialViewport(initialViewport)}
           onMoveTask={onMoveTask}
           isMovePending={isMovePending}
         />
@@ -385,6 +418,54 @@ const SidebarSection = ({
       isLoading={isStatusLoading}
       error={statusError}
     />
+  </div>
+)
+
+type TaskListSectionProps = Readonly<{
+  tasks: readonly TaskBoardTask[]
+  selectedTaskId?: string
+  onSelectTask?: (taskId: string) => void
+}>
+
+const TaskListSection = ({
+  tasks,
+  selectedTaskId,
+  onSelectTask,
+}: TaskListSectionProps): JSX.Element => (
+  <section className="rounded-[3rem] border border-white/40 bg-white/90 p-6 shadow-2xl shadow-primary-500/5">
+    <header className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-primary-500">
+        Narrative list view
+      </p>
+      <h3 className="text-2xl font-semibold text-gray-900">
+        See the same tasks in a linear flow
+      </h3>
+      <p className="text-sm text-gray-600">
+        Visual thinkers often bounce between spatial canvases and structured lists. This view mirrors
+        the canvas so you can scan momentum, triage with the keyboard, or tab through histories.
+      </p>
+    </header>
+    <div className="mt-6">
+      <TodoList
+        tasks={tasks}
+        selectedId={selectedTaskId}
+        onSelect={onSelectTask}
+        emptyState={<TaskListEmptyState />}
+      />
+    </div>
+  </section>
+)
+
+const TaskListEmptyState = (): JSX.Element => (
+  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/80 p-8 text-center text-sm text-gray-600">
+    <p className="font-semibold text-gray-900">No todos in this filter set</p>
+    <p className="mt-2">
+      Create a task above or seed data with{' '}
+      <code className="rounded bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">
+        pnpm cli add "First canvas task"
+      </code>
+      . Both the board and list stay in sync.
+    </p>
   </div>
 )
 

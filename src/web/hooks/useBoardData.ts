@@ -6,13 +6,14 @@ import type {
   TaskBoardRelationship,
   TaskBoardTask,
 } from '../components/TaskBoard'
+import type { TaskBoardViewport } from '../components/TaskBoardMinimap'
 import { transformSnapshot } from '../utils/boardData'
 
 export type BoardData = Readonly<{
   tasks: TaskBoardTask[]
   relationships: TaskBoardRelationship[]
   totals: BoardSnapshotDTO['totals']
-  viewport: BoardSnapshotDTO['viewport']
+  viewport: TaskBoardViewport
 }>
 
 export type UseBoardDataResult = Readonly<{

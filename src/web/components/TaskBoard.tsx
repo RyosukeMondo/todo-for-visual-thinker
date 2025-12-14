@@ -17,6 +17,9 @@ export type TaskBoardTask = TaskCardProps &
   Readonly<{
     id: string
     position: CanvasPosition
+    createdAt?: Date
+    updatedAt?: Date
+    completedAt?: Date
   }>
 
 export type TaskBoardRelationship = Readonly<{
