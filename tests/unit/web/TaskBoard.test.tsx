@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { TaskBoardRelationship, TaskBoardTask } from '@/web/components'
 import { TaskBoard } from '@/web/components'
+import { findNextTaskByDirection } from '@/web/utils/taskNavigation'
 import { buildConnectionSegments } from '@/web/components/TaskBoard.connections'
 
 const sampleTasks: TaskBoardTask[] = [
@@ -51,7 +52,7 @@ describe('TaskBoard interactions', () => {
   })
 })
 
-describe('TaskBoard viewport controls', () => {
+describe('TaskBoard viewport controls (zoom)', () => {
   it('updates viewport via zoom controls', () => {
     const handleViewport = vi.fn()
     const { getByRole, getByText } = render(
@@ -68,7 +69,9 @@ describe('TaskBoard viewport controls', () => {
     )
     expect(getByText('100%')).toBeDefined()
   })
+})
 
+describe('TaskBoard viewport controls (pointer pan)', () => {
   it('pans the viewport via pointer events', () => {
     const { getByRole } = render(<TaskBoard tasks={sampleTasks} />)
     const surface = getByRole('region', { name: 'Task board canvas' })
@@ -89,23 +92,55 @@ describe('TaskBoard viewport controls', () => {
 
     expect(getByRole('button', { name: 'Reset view' })).toBeDefined()
   })
+})
 
-  it('supports keyboard navigation for panning and zooming', () => {
+describe('TaskBoard viewport controls (keyboard)', () => {
+  it('supports keyboard navigation for panning, zoom, and selection', () => {
     const handleViewport = vi.fn()
+    const handleSelect = vi.fn()
     const { getByRole, getByText } = render(
-      <TaskBoard tasks={sampleTasks} onViewportChange={handleViewport} />,
+      <TaskBoard
+        tasks={sampleTasks}
+        onViewportChange={handleViewport}
+        onSelect={handleSelect}
+        selectedId="todo-1"
+      />,
     )
     const surface = getByRole('region', { name: 'Task board canvas' })
 
     surface.focus()
     fireEvent.keyDown(surface, { key: 'ArrowRight' })
-    fireEvent.keyDown(surface, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyDown(surface, { key: 'ArrowDown', altKey: true, shiftKey: true })
     fireEvent.keyDown(surface, { key: '+' })
     fireEvent.keyDown(surface, { key: '-', shiftKey: true })
     fireEvent.keyDown(surface, { key: '0', ctrlKey: true })
 
     expect(handleViewport).toHaveBeenCalled()
+    expect(handleSelect).toHaveBeenCalledWith('todo-2')
     expect(getByText('100%')).toBeDefined()
+  })
+})
+
+describe('findNextTaskByDirection', () => {
+  it('returns undefined when no tasks exist', () => {
+    expect(findNextTaskByDirection([], undefined, 'up')).toBeUndefined()
+  })
+
+  it('returns first task when no current selection', () => {
+    expect(findNextTaskByDirection(sampleTasks, undefined, 'up')).toBe('todo-1')
+  })
+
+  it('navigates to closest task in specified direction', () => {
+    const tasks: TaskBoardTask[] = [
+      { ...sampleTasks[0], id: 'center', position: { x: 0, y: 0 } },
+      { ...sampleTasks[0], id: 'right', position: { x: 200, y: 10 } },
+      { ...sampleTasks[0], id: 'left', position: { x: -100, y: -20 } },
+      { ...sampleTasks[0], id: 'above', position: { x: -10, y: -120 } },
+    ]
+
+    expect(findNextTaskByDirection(tasks, 'center', 'right')).toBe('right')
+    expect(findNextTaskByDirection(tasks, 'center', 'left')).toBe('left')
+    expect(findNextTaskByDirection(tasks, 'center', 'up')).toBe('above')
   })
 })
 

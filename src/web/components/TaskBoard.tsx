@@ -11,6 +11,7 @@ import type { CanvasPosition } from '@core/domain/Todo'
 import type { RelationshipType } from '@core/domain/Relationship'
 import { buildConnectionSegments, type ConnectionSegment } from './TaskBoard.connections'
 import { useViewportController, type ViewportController, type ViewportState } from './TaskBoard.viewport'
+import { findNextTaskByDirection, type NavigationDirection } from '../utils/taskNavigation'
 
 import { TaskCard } from './TaskCard'
 import type { TaskCardProps } from './TaskCard'
@@ -123,7 +124,7 @@ const TaskBoardView = ({
       onZoomOut={controller.zoomOut}
       onReset={controller.reset}
     />
-    <BoardSurface controller={controller}>
+    <BoardSurface controller={controller} tasks={tasks} selectedId={selectedId} onSelect={onSelect}>
       <BoardConnections
         tasks={tasks}
         relationships={relationships}
@@ -195,16 +196,19 @@ const BoardControlButton = ({
 
 type BoardSurfaceProps = Readonly<{
   controller: ReturnType<typeof useViewportController>
+  tasks: readonly TaskBoardTask[]
+  selectedId?: string
+  onSelect?: (taskId: string) => void
   children: React.ReactNode
 }>
 
-const BoardSurface = ({ controller, children }: BoardSurfaceProps): JSX.Element => {
+const BoardSurface = ({ controller, tasks, selectedId, onSelect, children }: BoardSurfaceProps): JSX.Element => {
   const canvasTransform = useMemo(() => buildCanvasTransform(controller.viewport), [controller.viewport])
   const gridStyle = useMemo<CSSProperties>(
     () => getGridPattern(controller.viewport.scale),
     [controller.viewport.scale],
   )
-  const handleKeyDown = useKeyboardNavigation(controller)
+  const handleKeyDown = useBoardKeyboardNavigation({ controller, tasks, selectedId, onSelect })
 
   return (
     <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] bg-slate-950/5">
@@ -383,51 +387,109 @@ const getGridPattern = (scale: number): CSSProperties => ({
   backgroundSize: `${Math.max(32, 64 * scale)}px ${Math.max(32, 64 * scale)}px`,
 })
 
-const useKeyboardNavigation = (
-  controller: ReturnType<typeof useViewportController>,
-) => {
-  const handleKeyDown = useCallback(
+const ARROW_KEY_DIRECTIONS: Partial<Record<string, NavigationDirection>> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+}
+
+type BoardKeyboardContext = Readonly<{
+  controller: ReturnType<typeof useViewportController>
+  tasks: readonly TaskBoardTask[]
+  selectedId?: string
+  onSelect?: (taskId: string) => void
+}>
+
+const useBoardKeyboardNavigation = ({
+  controller,
+  tasks,
+  selectedId,
+  onSelect,
+}: BoardKeyboardContext) =>
+  useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      const multiplier = event.shiftKey ? KEYBOARD_PAN_MULTI : 1
-      const step = KEYBOARD_PAN_STEP * multiplier
-      switch (event.key) {
-        case 'ArrowUp':
-          event.preventDefault()
-          controller.panBy(0, -step)
-          break
-        case 'ArrowDown':
-          event.preventDefault()
-          controller.panBy(0, step)
-          break
-        case 'ArrowLeft':
-          event.preventDefault()
-          controller.panBy(-step, 0)
-          break
-        case 'ArrowRight':
-          event.preventDefault()
-          controller.panBy(step, 0)
-          break
-        case '+':
-        case '=':
-          event.preventDefault()
-          controller.zoomIn()
-          break
-        case '-':
-        case '_':
-          event.preventDefault()
-          controller.zoomOut()
-          break
-        case '0':
-          if (event.metaKey || event.ctrlKey) {
-            event.preventDefault()
-            controller.reset()
-          }
-          break
-        default:
+      if (handleDirectionalKey(event, { controller, tasks, selectedId, onSelect })) {
+        return
       }
+      handleViewportShortcut(event, controller)
     },
-    [controller],
+    [controller, tasks, selectedId, onSelect],
   )
 
-  return handleKeyDown
+const handleDirectionalKey = (
+  event: ReactKeyboardEvent<HTMLDivElement>,
+  context: BoardKeyboardContext,
+): boolean => {
+  const direction = ARROW_KEY_DIRECTIONS[event.key]
+  if (!direction) {
+    return false
+  }
+
+  const step = getPanStep(event)
+  event.preventDefault()
+  if (event.altKey) {
+    panViewport(direction, step, context.controller)
+    return true
+  }
+  if (!context.onSelect) {
+    return true
+  }
+  const next = findNextTaskByDirection(context.tasks, context.selectedId, direction)
+  if (next) {
+    context.onSelect(next)
+  }
+  return true
+}
+
+const getPanStep = (event: ReactKeyboardEvent<HTMLDivElement>): number => {
+  const multiplier = event.shiftKey ? KEYBOARD_PAN_MULTI : 1
+  return KEYBOARD_PAN_STEP * multiplier
+}
+
+const panViewport = (
+  direction: NavigationDirection,
+  step: number,
+  controller: ReturnType<typeof useViewportController>,
+): void => {
+  switch (direction) {
+    case 'up':
+      controller.panBy(0, -step)
+      break
+    case 'down':
+      controller.panBy(0, step)
+      break
+    case 'left':
+      controller.panBy(-step, 0)
+      break
+    case 'right':
+      controller.panBy(step, 0)
+      break
+    default:
+  }
+}
+
+const handleViewportShortcut = (
+  event: ReactKeyboardEvent<HTMLDivElement>,
+  controller: ReturnType<typeof useViewportController>,
+): void => {
+  switch (event.key) {
+    case '+':
+    case '=':
+      event.preventDefault()
+      controller.zoomIn()
+      break
+    case '-':
+    case '_':
+      event.preventDefault()
+      controller.zoomOut()
+      break
+    case '0':
+      if (event.metaKey || event.ctrlKey) {
+        event.preventDefault()
+        controller.reset()
+      }
+      break
+    default:
+  }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import type { TodoStatus } from '@core/domain/Todo'
 
@@ -53,11 +53,30 @@ const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 function App() {
   const state = useTaskFilters(sampleTodos, INITIAL_STATUSES)
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
+    () => sampleTodos[0]?.id,
+  )
+
+  useEffect(() => {
+    if (state.filteredTasks.length === 0) {
+      setSelectedTaskId(undefined)
+      return
+    }
+    if (!selectedTaskId || !state.filteredTasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(state.filteredTasks[0]?.id)
+    }
+  }, [selectedTaskId, state.filteredTasks])
+
+  const handleSelectTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId)
+  }, [])
 
   return (
     <LandingPage
       state={state}
       hoveredTaskId={hoveredTaskId}
+      selectedTaskId={selectedTaskId}
+      onSelectTask={handleSelectTask}
       onHoverTask={setHoveredTaskId}
     />
   )
@@ -68,28 +87,21 @@ export default App
 type LandingPageProps = Readonly<{
   state: UseTaskFiltersResult
   hoveredTaskId?: string
+  selectedTaskId?: string
   onHoverTask: (taskId: string | undefined) => void
+  onSelectTask: (taskId: string) => void
 }>
 
 const LandingPage = ({
   state,
   hoveredTaskId,
+  selectedTaskId,
+  onSelectTask,
   onHoverTask,
 }: LandingPageProps): JSX.Element => (
   <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
     <div className="container mx-auto px-4 py-10">
-      <header className="mb-12 text-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary-500">
-          Visual-first productivity
-        </p>
-        <h1 className="mt-3 text-4xl font-bold text-gray-900">
-          Todo for Visual Thinker
-        </h1>
-        <p className="mt-4 text-lg text-gray-600">
-          Neuroscience-backed task management for spatial minds, built in the open.
-        </p>
-      </header>
-
+      <LandingHero />
       <main className="mx-auto max-w-6xl space-y-8">
         <TaskFilters
           statuses={INITIAL_STATUSES}
@@ -100,23 +112,65 @@ const LandingPage = ({
           onClearCategories={state.resetCategories}
         />
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
-          <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
-            <TaskBoard
-              tasks={state.filteredTasks}
-              selectedId="todo-001"
-              hoverId={hoveredTaskId}
-              onHover={onHoverTask}
-            />
-          </section>
-          <div className="space-y-6 xl:sticky xl:top-12">
-            <AddTodoForm
-              onSubmit={(values) => console.info('Add todo', values)}
-              className="h-fit"
-            />
-            <TaskMetricsPanel tasks={state.filteredTasks} />
-          </div>
+          <TaskBoardSection
+            tasks={state.filteredTasks}
+            hoveredTaskId={hoveredTaskId}
+            onHoverTask={onHoverTask}
+            onSelectTask={onSelectTask}
+            selectedTaskId={selectedTaskId}
+          />
+          <SidebarSection tasks={state.filteredTasks} />
         </div>
       </main>
     </div>
+  </div>
+)
+
+const LandingHero = (): JSX.Element => (
+  <header className="mb-12 text-center">
+    <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary-500">
+      Visual-first productivity
+    </p>
+    <h1 className="mt-3 text-4xl font-bold text-gray-900">Todo for Visual Thinker</h1>
+    <p className="mt-4 text-lg text-gray-600">
+      Neuroscience-backed task management for spatial minds, built in the open.
+    </p>
+  </header>
+)
+
+type TaskBoardSectionProps = Readonly<{
+  tasks: readonly TaskBoardTask[]
+  hoveredTaskId?: string
+  selectedTaskId?: string
+  onSelectTask: (taskId: string) => void
+  onHoverTask: (taskId: string | undefined) => void
+}>
+
+const TaskBoardSection = ({
+  tasks,
+  hoveredTaskId,
+  selectedTaskId,
+  onSelectTask,
+  onHoverTask,
+}: TaskBoardSectionProps): JSX.Element => (
+  <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
+    <TaskBoard
+      tasks={tasks}
+      selectedId={selectedTaskId}
+      hoverId={hoveredTaskId}
+      onHover={onHoverTask}
+      onSelect={onSelectTask}
+    />
+  </section>
+)
+
+type SidebarSectionProps = Readonly<{
+  tasks: readonly TaskBoardTask[]
+}>
+
+const SidebarSection = ({ tasks }: SidebarSectionProps): JSX.Element => (
+  <div className="space-y-6 xl:sticky xl:top-12">
+    <AddTodoForm onSubmit={(values) => console.info('Add todo', values)} className="h-fit" />
+    <TaskMetricsPanel tasks={tasks} />
   </div>
 )
