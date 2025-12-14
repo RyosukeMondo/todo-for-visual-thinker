@@ -68,7 +68,7 @@ const expectSeededResponse = (payload: InitDbPayload, dbPath: string) => {
   expect(payload.success).toBe(true)
   expect(payload.data.dbPath).toBe(dbPath)
   expect(payload.data.seededDemoTasks).toBe(3)
-  expect(payload.data.seededDemoRelationships).toBe(3)
+  expect(payload.data.seededDemoRelationships).toBe(4)
   expect(payload.data.overwroteExisting).toBe(false)
 }
 
@@ -82,7 +82,7 @@ const expectDemoCounts = (dbPath: string) => {
     const relationships = db
       .prepare('SELECT COUNT(*) AS count FROM relationships')
       .get() as { count: number }
-    expect(relationships.count).toBe(3)
+    expect(relationships.count).toBe(4)
   } finally {
     db.close()
   }

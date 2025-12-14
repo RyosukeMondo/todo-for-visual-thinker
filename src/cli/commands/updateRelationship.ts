@@ -29,7 +29,10 @@ export const registerUpdateRelationshipCommand = (
     .command('relink')
     .description('Update relationship type or description')
     .argument('<id>', 'Relationship identifier to update')
-    .option('--type <value>', 'Relationship type depends_on|blocks|related_to')
+    .option(
+      '--type <value>',
+      'Relationship type depends_on|blocks|related_to|parent_of',
+    )
     .option('--description <text>', 'Description text (empty clears)')
     .action(async (id: string, options: UpdateRelationshipOptions) => {
       await handleUpdateRelationship(id, options, deps, io)
@@ -76,7 +79,7 @@ const parseOptionalType = (raw?: string): RelationshipType | undefined => {
   if (raw === undefined) return undefined
   const normalized = raw.trim()
   if (!RELATIONSHIP_TYPES.includes(normalized as RelationshipType)) {
-    throw new ValidationError('Relationship type must be depends_on|blocks|related_to', {
+    throw new ValidationError('Relationship type must be depends_on|blocks|related_to|parent_of', {
       value: normalized,
     })
   }

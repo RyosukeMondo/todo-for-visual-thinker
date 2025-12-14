@@ -1,8 +1,17 @@
 import { ValidationError } from '@core/errors'
 
-export type RelationshipType = 'depends_on' | 'blocks' | 'related_to'
+export type RelationshipType =
+  | 'depends_on'
+  | 'blocks'
+  | 'related_to'
+  | 'parent_of'
 
-const ALLOWED_TYPES: RelationshipType[] = ['depends_on', 'blocks', 'related_to']
+const ALLOWED_TYPES: RelationshipType[] = [
+  'depends_on',
+  'blocks',
+  'related_to',
+  'parent_of',
+]
 const DESCRIPTION_LIMIT = 500
 
 export type RelationshipProps = {

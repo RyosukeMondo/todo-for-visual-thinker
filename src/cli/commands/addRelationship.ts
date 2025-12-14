@@ -30,7 +30,10 @@ export const registerAddRelationshipCommand = (
     .description('Create a visual relationship between two todos')
     .argument('<fromId>', 'Source todo identifier')
     .argument('<toId>', 'Target todo identifier')
-    .option('--type <value>', 'Relationship type depends_on|blocks|related_to')
+    .option(
+      '--type <value>',
+      'Relationship type depends_on|blocks|related_to|parent_of',
+    )
     .option('-d, --description <text>', 'Optional relationship description')
     .action(async (fromId: string, toId: string, options: AddRelationshipOptions) => {
       await handleAddRelationshipAction(fromId, toId, options, deps, io)
@@ -80,7 +83,7 @@ const mapInput = (
 const parseType = (raw?: string): RelationshipType => {
   const value = raw?.trim() ?? 'depends_on'
   if (!RELATIONSHIP_TYPES.includes(value as RelationshipType)) {
-    throw new ValidationError('Relationship type must be depends_on|blocks|related_to', {
+    throw new ValidationError('Relationship type must be depends_on|blocks|related_to|parent_of', {
       value,
     })
   }

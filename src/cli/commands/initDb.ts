@@ -303,4 +303,10 @@ const buildDemoRelationshipSeeds = (): DemoRelationshipSeed[] => [
     type: 'related_to',
     description: 'Prototype visuals should stay in sync with the color framework.',
   },
+  {
+    from: 'launch-map',
+    to: 'canvas-prototype',
+    type: 'parent_of',
+    description: 'Launch plan orchestrates the canvas prototyping stream.',
+  },
 ]
