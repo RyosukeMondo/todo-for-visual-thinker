@@ -3,8 +3,10 @@
   "title": "mvp-foundation requirements",
   "filePath": ".spec-workflow/specs/mvp-foundation/requirements.md",
   "type": "document",
-  "status": "pending",
+  "status": "approved",
   "createdAt": "2025-12-14T07:22:42.923Z",
   "category": "spec",
-  "categoryName": "mvp-foundation"
+  "categoryName": "mvp-foundation",
+  "response": "ダッシュボードから承認",
+  "respondedAt": "2025-12-14T07:53:24.298Z"
 }

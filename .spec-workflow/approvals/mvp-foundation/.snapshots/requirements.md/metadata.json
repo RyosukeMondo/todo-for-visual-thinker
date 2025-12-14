@@ -1,12 +1,20 @@
 {
   "filePath": ".spec-workflow/specs/mvp-foundation/requirements.md",
-  "currentVersion": 1,
+  "currentVersion": 2,
   "snapshots": [
     {
       "version": 1,
       "filename": "snapshot-001.json",
       "timestamp": "2025-12-14T07:22:42.929Z",
       "trigger": "initial",
+      "approvalId": "approval_1765696962923_s4bai6oy9",
+      "approvalTitle": "mvp-foundation requirements"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-12-14T07:53:24.297Z",
+      "trigger": "approved",
       "approvalId": "approval_1765696962923_s4bai6oy9",
       "approvalTitle": "mvp-foundation requirements"
     }

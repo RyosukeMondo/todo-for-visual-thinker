@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/mvp-foundation/design.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-12-14T07:49:43.994Z",
+      "trigger": "initial",
+      "approvalId": "approval_1765698583989_zecy4uspx",
+      "approvalTitle": "Design document for mvp-foundation"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-12-14T07:53:23.129Z",
+      "trigger": "approved",
+      "approvalId": "approval_1765698583989_zecy4uspx",
+      "approvalTitle": "Design document for mvp-foundation"
+    }
+  ]
+}
