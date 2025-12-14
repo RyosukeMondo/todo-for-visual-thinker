@@ -12,6 +12,7 @@ import { registerListRelationshipsCommand } from './commands/listRelationships'
 import { registerDeleteRelationshipsCommand } from './commands/deleteRelationships'
 import { registerUpdateRelationshipCommand } from './commands/updateRelationship'
 import { registerStatusCommand } from './commands/status'
+import { registerSnapshotCommand } from './commands/snapshot'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -49,6 +50,7 @@ export const buildCliProgram = (
     io,
   )
   registerStatusCommand(program, { getBoardStatus: runtime.getBoardStatus }, io)
+  registerSnapshotCommand(program, { getBoardSnapshot: runtime.getBoardSnapshot }, io)
 
   return program
 }

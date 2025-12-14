@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 
-import type { ListTodos } from '@core/usecases'
+import type { GetBoardSnapshot } from '@core/usecases/GetBoardSnapshot'
 
 import type { CliIO } from '../io'
 import { writeJson } from '../io'
@@ -8,20 +8,18 @@ import { serializeError, serializeTodo } from '../serializers'
 import { mapTodoFiltersToQuery } from './todoQueryOptions'
 import type { TodoFilterOptions } from './todoQueryOptions'
 
-export type ListTodosDependencies = Readonly<{
-  listTodos: Pick<ListTodos, 'execute'>
+export type SnapshotCommandDependencies = Readonly<{
+  getBoardSnapshot: Pick<GetBoardSnapshot, 'execute'>
 }>
 
-export type ListTodosOptions = TodoFilterOptions
-
-export const registerListTodosCommand = (
+export const registerSnapshotCommand = (
   program: Command,
-  deps: ListTodosDependencies,
+  deps: SnapshotCommandDependencies,
   io: CliIO,
 ): void => {
   program
-    .command('list')
-    .description('List todos with visual-first filtering options')
+    .command('snapshot')
+    .description('Render a machine-friendly snapshot of board tasks and viewport bounds')
     .option('-s, --status <status...>', 'Filter by status (repeatable)')
     .option('-c, --category <name>', 'Filter by category label')
     .option('-q, --search <text>', 'Free text search across title/description')
@@ -35,25 +33,24 @@ export const registerListTodosCommand = (
     .option('--x-max <number>', 'Viewport X max bound')
     .option('--y-min <number>', 'Viewport Y min bound')
     .option('--y-max <number>', 'Viewport Y max bound')
-    .action(async (options: ListTodosOptions) => {
-      await handleListAction(options, deps, io)
+    .action(async (options: SnapshotOptions) => {
+      await handleSnapshotAction(options, deps, io)
     })
 }
 
-const handleListAction = async (
-  options: ListTodosOptions,
-  deps: ListTodosDependencies,
+export type SnapshotOptions = TodoFilterOptions
+
+const handleSnapshotAction = async (
+  options: SnapshotOptions,
+  deps: SnapshotCommandDependencies,
   io: CliIO,
 ): Promise<void> => {
   try {
     const query = mapTodoFiltersToQuery(options)
-    const todos = await deps.listTodos.execute(query)
+    const snapshot = await deps.getBoardSnapshot.execute(query)
     writeJson(io.stdout, {
       success: true,
-      data: {
-        todos: todos.map(serializeTodo),
-        filters: query,
-      },
+      data: serializeSnapshot(snapshot),
     })
   } catch (error) {
     writeJson(io.stderr, {
@@ -63,3 +60,12 @@ const handleListAction = async (
     process.exitCode = 1
   }
 }
+
+const serializeSnapshot = (
+  snapshot: Awaited<ReturnType<GetBoardSnapshot['execute']>>,
+) => ({
+  totals: snapshot.totals,
+  viewport: snapshot.viewport,
+  bounds: snapshot.bounds,
+  tasks: snapshot.tasks.map((todo) => serializeTodo(todo)),
+})

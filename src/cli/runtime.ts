@@ -12,6 +12,7 @@ import {
   DeleteRelationship,
   DeleteTodo,
   GetBoardStatus,
+  GetBoardSnapshot,
   ListRelationships,
   ListTodos,
   UpdateRelationship,
@@ -31,6 +32,7 @@ export type CliRuntime = Readonly<{
   createTodo: CreateTodo
   listTodos: ListTodos
   getBoardStatus: GetBoardStatus
+  getBoardSnapshot: GetBoardSnapshot
   listRelationships: ListRelationships
   deleteTodo: DeleteTodo
   deleteRelationship: DeleteRelationship
@@ -57,6 +59,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const listTodos = new ListTodos({ repository })
   const listRelationships = new ListRelationships({ repository: relationships })
   const getBoardStatus = new GetBoardStatus({ repository })
+  const getBoardSnapshot = new GetBoardSnapshot({ repository })
   const deleteTodo = new DeleteTodo({
     repository,
     relationships,
@@ -77,6 +80,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     createTodo,
     listTodos,
     getBoardStatus,
+    getBoardSnapshot,
     listRelationships,
     deleteTodo,
     deleteRelationship,
