@@ -78,3 +78,9 @@ playwright/.cache/
 
 # Local configuration overrides
 *.local.json
+
+# Autonomous development monitor state
+.spec-workflow/monitor/
+
+# steer-driven-runner (independent git repository)
+steer-driven-runner/

@@ -118,33 +118,42 @@ This project follows **Hexagonal Architecture** (Ports & Adapters):
 
 ## Autonomous Development
 
-This project uses AI-driven autonomous development. See:
+This project uses AI-driven autonomous development powered by **[steer-driven-runner](https://github.com/RyosukeMondo/steer-driven-runner)**.
 
-- [`scripts/README.md`](scripts/README.md) - Autonomous development script docs
-- [`AUTONOMOUS-DEV-GUIDE.md`](AUTONOMOUS-DEV-GUIDE.md) - Complete guide
-- [`.spec-workflow/steering/`](.spec-workflow/steering/) - Project specifications
+### Installation
+
+```bash
+# Install steer-driven-runner
+pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+
+# Or use uv
+uv pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+```
 
 ### Running Autonomous Development
 
 ```bash
 # Run with defaults
-./scripts/autonomous-dev.sh
+steer-run
 
 # Run with custom settings
-./scripts/autonomous-dev.sh -i 100 -c 5 -m gpt-5.1-codex
+steer-run -i 100 -c 5 -m gpt-5.1-codex
+
+# Stop gracefully (completes current iteration then exits)
+touch stop.txt
+# Runner detects stop.txt, stops, and removes the file
 ```
 
 ### Async Feedback System
 
-The project includes an async feedback loop for communicating with the AI agent without blocking its progress:
+Post feedback for the AI agent without blocking its progress:
 
-**Post feedback for the AI:**
 ```bash
 # Quick feedback
-./scripts/post-feedback.sh "Web UI doesn't show todos from database"
+steer-feedback "Web UI doesn't show todos from database"
 
 # With priority and type
-./scripts/post-feedback.sh --priority HIGH --type BUG "Missing canvas zoom controls"
+steer-feedback "Missing canvas zoom controls" --priority HIGH --type BUG
 ```
 
 **How it works:**
@@ -164,7 +173,32 @@ The project includes an async feedback loop for communicating with the AI agent 
 - AI uses this to self-assess visual implementations
 - Update checklist with [x] when you verify features work
 
-See [`.spec-workflow/feedback/README.md`](.spec-workflow/feedback/README.md) for full documentation.
+### Real-Time Monitoring
+
+Monitor autonomous development progress with a rich CLI dashboard:
+
+```bash
+# In terminal 1: Run autonomous development
+steer-run -i 100
+
+# In terminal 2: Launch monitor
+steer-monitor
+```
+
+**The monitor shows:**
+- Iteration progress with visual progress bar
+- Real-time code metrics (lines, files)
+- Current task being worked on
+- Recent script output
+- Status indicators (running, stopped, error)
+
+### Documentation
+
+- [steer-driven-runner](https://github.com/RyosukeMondo/steer-driven-runner) - Main repository and full documentation
+- [`scripts/README.md`](scripts/README.md) - Migration notes
+- [`AUTONOMOUS-DEV-GUIDE.md`](AUTONOMOUS-DEV-GUIDE.md) - Complete guide
+- [`.spec-workflow/steering/`](.spec-workflow/steering/) - Project specifications
+- [`.spec-workflow/feedback/README.md`](.spec-workflow/feedback/README.md) - Feedback system docs
 
 ## Contributing
 
