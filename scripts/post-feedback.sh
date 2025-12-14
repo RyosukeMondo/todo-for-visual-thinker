@@ -35,18 +35,27 @@ while [[ $# -gt 0 ]]; do
             TYPE="$2"
             shift 2
             ;;
+        --stop)
+            # Emergency stop - graceful shutdown
+            TYPE="STOP_REQUEST"
+            PRIORITY="CRITICAL"
+            MESSAGE="Emergency stop requested by human. Please complete current iteration and exit gracefully."
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS] <message>"
             echo ""
             echo "Options:"
             echo "  -p, --priority LEVEL    Priority: LOW, MEDIUM, HIGH, CRITICAL (default: MEDIUM)"
             echo "  -t, --type TYPE         Type: BUG, FEATURE, IMPROVEMENT, VISUAL (default: FEEDBACK)"
+            echo "  --stop                  Emergency stop: AI will exit after current iteration"
             echo "  -h, --help              Show this help"
             echo ""
             echo "Examples:"
             echo "  $0 \"Web UI doesn't show todos from database\""
             echo "  $0 --priority HIGH \"Missing todo list display\""
             echo "  $0 --type VISUAL --priority HIGH \"Canvas needs zoom controls\""
+            echo "  $0 --stop  # Graceful emergency stop"
             exit 0
             ;;
         *)

@@ -365,6 +365,30 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         COMPLETED_COUNT=0
     fi
 
+    # Emergency stop check - graceful shutdown
+    FEEDBACK_FILE="$PROJECT_ROOT/.spec-workflow/feedback/pending.md"
+    if [ -f "$FEEDBACK_FILE" ] && grep -q "STOP_REQUEST" "$FEEDBACK_FILE"; then
+        echo ""
+        log "╔════════════════════════════════════════════════════════╗" "$YELLOW"
+        log "║  🛑 EMERGENCY STOP REQUESTED                          ║" "$YELLOW"
+        log "║  Graceful shutdown after current iteration           ║" "$YELLOW"
+        log "╚════════════════════════════════════════════════════════╝" "$YELLOW"
+        echo ""
+        log "Stop request detected in feedback." "$YELLOW"
+        log "AI agent will stop after completing current work." "$YELLOW"
+        echo ""
+
+        # Archive the stop request
+        ARCHIVE_DIR="$PROJECT_ROOT/.spec-workflow/feedback/archive"
+        mkdir -p "$ARCHIVE_DIR"
+        ARCHIVE_FILE="$ARCHIVE_DIR/stop-request-$(date +%Y-%m-%d-%H%M%S).md"
+        mv "$FEEDBACK_FILE" "$ARCHIVE_FILE"
+        log "📦 Stop request archived to: $(basename $ARCHIVE_FILE)" "$GREEN"
+
+        log "Exiting gracefully..." "$YELLOW"
+        exit 0
+    fi
+
     # Continue if there are tasks or in steering-driven mode
     if [ "$STEERING_DRIVEN" = false ] && [ "$PENDING_COUNT" -eq 0 ] && [ "$IN_PROGRESS_COUNT" -eq 0 ]; then
         # Already set EXIT_CODE=99 above

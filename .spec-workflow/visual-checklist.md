@@ -2,6 +2,62 @@
 
 This checklist defines visual features that require human verification but should be implemented by the AI agent.
 
+## ⚡ CRITICAL: Data-Driven Validation Strategy
+
+**DO NOT spend time on expensive visual validation!**
+
+### Hyper-Speed Iteration Principle
+
+Instead of validating the visual output (slow, expensive), **validate the data structures** that produce the visual output.
+
+**Example - Canvas Drawing:**
+```javascript
+// ❌ SLOW: Don't validate by rendering
+render(todos) → check if canvas looks right  // EXPENSIVE!
+
+// ✅ FAST: Validate the data structure BEFORE rendering
+validate(todos) → check JSON schema → assert data correctness  // INSTANT!
+```
+
+**What to validate:**
+- ✅ JSON data structure (fast)
+- ✅ Property types and values (instant)
+- ✅ Data transformations (testable)
+- ✅ Computed positions/colors (unit tests)
+- ❌ NOT the actual pixels on screen (slow)
+- ❌ NOT the browser rendering (expensive)
+
+**Example validations:**
+
+```typescript
+// Fast data validation
+describe('Todo canvas data', () => {
+  it('has valid position coordinates', () => {
+    const todo = createTodo({ position: { x: 100, y: 200 } })
+    expect(todo.position.x).toBeGreaterThan(-100000)
+    expect(todo.position.y).toBeGreaterThan(-100000)
+  })
+
+  it('has valid hex color', () => {
+    const todo = createTodo({ color: '#60a5fa' })
+    expect(todo.color).toMatch(/^#[0-9a-f]{6}$/i)
+  })
+
+  it('priority affects visual size calculation', () => {
+    const p5 = createTodo({ priority: 5 })
+    const p1 = createTodo({ priority: 1 })
+    expect(p5.visualSize).toBe('large')
+    expect(p1.visualSize).toBe('small')
+  })
+})
+```
+
+**Speed comparison:**
+- Data validation: **< 1ms per test**
+- Visual rendering validation: **100-500ms per check**
+
+**Result: 100-500x faster iteration!**
+
 ## Status Legend
 - [ ] Not implemented
 - [~] Partially implemented (needs review)
