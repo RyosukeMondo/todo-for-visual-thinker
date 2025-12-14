@@ -48,7 +48,9 @@ describe('TaskBoard interactions', () => {
 
     expect(handleSelect).toHaveBeenCalledWith('todo-2')
   })
+})
 
+describe('TaskBoard viewport controls', () => {
   it('updates viewport via zoom controls', () => {
     const handleViewport = vi.fn()
     const { getByRole, getByText } = render(
@@ -68,7 +70,7 @@ describe('TaskBoard interactions', () => {
 
   it('pans the viewport via pointer events', () => {
     const { getByRole } = render(<TaskBoard tasks={sampleTasks} />)
-    const surface = getByRole('presentation')
+    const surface = getByRole('region', { name: 'Task board canvas' })
 
     fireEvent.pointerDown(surface, {
       pointerId: 1,
@@ -85,6 +87,24 @@ describe('TaskBoard interactions', () => {
     })
 
     expect(getByRole('button', { name: 'Reset view' })).toBeDefined()
+  })
+
+  it('supports keyboard navigation for panning and zooming', () => {
+    const handleViewport = vi.fn()
+    const { getByRole, getByText } = render(
+      <TaskBoard tasks={sampleTasks} onViewportChange={handleViewport} />,
+    )
+    const surface = getByRole('region', { name: 'Task board canvas' })
+
+    surface.focus()
+    fireEvent.keyDown(surface, { key: 'ArrowRight' })
+    fireEvent.keyDown(surface, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyDown(surface, { key: '+' })
+    fireEvent.keyDown(surface, { key: '-', shiftKey: true })
+    fireEvent.keyDown(surface, { key: '0', ctrlKey: true })
+
+    expect(handleViewport).toHaveBeenCalled()
+    expect(getByText('100%')).toBeDefined()
   })
 })
 

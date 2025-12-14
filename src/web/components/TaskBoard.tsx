@@ -1,26 +1,22 @@
 import {
   type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
-  useEffect,
   useId,
   useMemo,
-  useRef,
-  useState,
 } from 'react'
 
 import type { CanvasPosition } from '@core/domain/Todo'
 import type { RelationshipType } from '@core/domain/Relationship'
 import { buildConnectionSegments } from './TaskBoard.connections'
+import { useViewportController, type ViewportController, type ViewportState } from './TaskBoard.viewport'
 
 import { TaskCard } from './TaskCard'
 import type { TaskCardProps } from './TaskCard'
 
 const BOARD_SIZE = 4096
-const MIN_SCALE = 0.6
-const MAX_SCALE = 1.8
-const SCALE_STEP = 0.15
+const KEYBOARD_PAN_STEP = 64
+const KEYBOARD_PAN_MULTI = 2
 
 export type TaskBoardTask = TaskCardProps &
   Readonly<{
@@ -36,12 +32,6 @@ export type TaskBoardRelationship = Readonly<{
   color?: string
 }>
 
-export type ViewportState = Readonly<{
-  x: number
-  y: number
-  scale: number
-}>
-
 export type TaskBoardProps = Readonly<{
   tasks: readonly TaskBoardTask[]
   selectedId?: string
@@ -50,14 +40,6 @@ export type TaskBoardProps = Readonly<{
   initialViewport?: Partial<ViewportState>
   onViewportChange?: (viewport: ViewportState) => void
   className?: string
-}>
-
-type DragSession = Readonly<{
-  pointerId: number
-  originX: number
-  originY: number
-  startX: number
-  startY: number
 }>
 
 export const TaskBoard = ({
@@ -105,7 +87,7 @@ const TaskBoardView = ({
   relationships,
 }: {
   className: string
-  controller: ReturnType<typeof useViewportController>
+  controller: ViewportController
   tasks: readonly TaskBoardTask[]
   selectedId?: string
   onSelect?: (taskId: string) => void
@@ -195,18 +177,23 @@ const BoardSurface = ({ controller, children }: BoardSurfaceProps): JSX.Element 
     () => getGridPattern(controller.viewport.scale),
     [controller.viewport.scale],
   )
+  const handleKeyDown = useKeyboardNavigation(controller)
 
   return (
     <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] bg-slate-950/5">
       <div className="absolute inset-0 bg-gradient-to-br from-primary-50/60 via-white to-secondary-50/60" aria-hidden />
       <div
-        role="presentation"
-        className={`relative h-[32rem] w-full touch-none ${controller.isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+        role="region"
+        aria-label="Task board canvas"
+        aria-roledescription="Spatial canvas"
+        tabIndex={0}
+        className={`relative h-[32rem] w-full touch-none outline-none ${controller.isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
         onPointerDown={controller.handlePointerDown}
         onPointerMove={controller.handlePointerMove}
         onPointerUp={controller.handlePointerUp}
         onPointerLeave={controller.handlePointerLeave}
         onWheel={controller.handleWheel}
+        onKeyDown={handleKeyDown}
         data-scale={controller.viewport.scale.toFixed(2)}
       >
         <div className="absolute inset-0" aria-hidden style={gridStyle} />
@@ -344,136 +331,6 @@ const BoardNodeButton = ({
   )
 }
 
-const useViewportController = (
-  initialViewport: Partial<ViewportState> | undefined,
-  onViewportChange?: (viewport: ViewportState) => void,
-) => {
-  const [viewport, setViewport] = useState<ViewportState>(() =>
-    normalizeViewport(initialViewport),
-  )
-  const viewportRef = useRef(viewport)
-  const pan = usePanHandlers(setViewport, viewportRef)
-
-  useEffect(() => {
-    viewportRef.current = viewport
-    onViewportChange?.(viewport)
-  }, [viewport, onViewportChange])
-
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const direction = event.deltaY > 0 ? -1 : 1
-    setViewport((current) => ({
-      ...current,
-      scale: clampScale(current.scale + direction * SCALE_STEP),
-    }))
-  }, [])
-
-  const adjustScale = useCallback((delta: number) => {
-    setViewport((current) => ({
-      ...current,
-      scale: clampScale(current.scale + delta),
-    }))
-  }, [])
-
-  const reset = useCallback(() => {
-    setViewport(normalizeViewport(initialViewport))
-  }, [initialViewport])
-
-  return {
-    viewport,
-    isPanning: pan.isPanning,
-    handlePointerDown: pan.handlePointerDown,
-    handlePointerMove: pan.handlePointerMove,
-    handlePointerUp: pan.handlePointerUp,
-    handlePointerLeave: pan.handlePointerLeave,
-    handleWheel,
-    zoomIn: () => adjustScale(SCALE_STEP),
-    zoomOut: () => adjustScale(-SCALE_STEP),
-    reset,
-  }
-}
-
-const usePanHandlers = (
-  setViewport: React.Dispatch<React.SetStateAction<ViewportState>>,
-  viewportRef: React.MutableRefObject<ViewportState>,
-) => {
-  const [isPanning, setIsPanning] = useState(false)
-  const dragSession = useRef<DragSession | null>(null)
-
-  const startPan = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      event.currentTarget.setPointerCapture?.(event.pointerId)
-      dragSession.current = buildDragSession(event, viewportRef.current)
-      setIsPanning(true)
-    },
-    [viewportRef],
-  )
-
-  const movePan = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const session = dragSession.current
-      if (!session || session.pointerId !== event.pointerId) return
-      event.preventDefault()
-      applyPanDelta(setViewport, session, event.clientX, event.clientY)
-    },
-    [setViewport],
-  )
-
-  const endPan = useCallback(
-    (event?: ReactPointerEvent<HTMLDivElement>) => {
-      if (event && dragSession.current?.pointerId === event.pointerId) {
-        event.currentTarget.releasePointerCapture?.(event.pointerId)
-      }
-      dragSession.current = null
-      setIsPanning(false)
-    },
-    [],
-  )
-
-  const handlePointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (dragSession.current?.pointerId !== event.pointerId) return
-      endPan(event)
-    },
-    [endPan],
-  )
-
-  return {
-    isPanning,
-    handlePointerDown: startPan,
-    handlePointerMove: movePan,
-    handlePointerUp,
-    handlePointerLeave: () => endPan(),
-  }
-}
-
-const buildDragSession = (
-  event: ReactPointerEvent<HTMLDivElement>,
-  viewport: ViewportState,
-): DragSession => ({
-  pointerId: event.pointerId,
-  originX: event.clientX,
-  originY: event.clientY,
-  startX: viewport.x,
-  startY: viewport.y,
-})
-
-const applyPanDelta = (
-  setViewport: React.Dispatch<React.SetStateAction<ViewportState>>,
-  session: DragSession,
-  clientX: number,
-  clientY: number,
-): void => {
-  const deltaX = clientX - session.originX
-  const deltaY = clientY - session.originY
-  setViewport((current) => ({
-    ...current,
-    x: session.startX + deltaX,
-    y: session.startY + deltaY,
-  }))
-}
-
 const buildCanvasTransform = (viewport: ViewportState): CSSProperties => ({
   width: BOARD_SIZE,
   height: BOARD_SIZE,
@@ -487,13 +344,51 @@ const getGridPattern = (scale: number): CSSProperties => ({
   backgroundSize: `${Math.max(32, 64 * scale)}px ${Math.max(32, 64 * scale)}px`,
 })
 
-const normalizeViewport = (
-  viewport: Partial<ViewportState> | undefined,
-): ViewportState => ({
-  x: viewport?.x ?? 0,
-  y: viewport?.y ?? 0,
-  scale: clampScale(viewport?.scale ?? 1),
-})
+const useKeyboardNavigation = (
+  controller: ReturnType<typeof useViewportController>,
+) => {
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const multiplier = event.shiftKey ? KEYBOARD_PAN_MULTI : 1
+      const step = KEYBOARD_PAN_STEP * multiplier
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault()
+          controller.panBy(0, -step)
+          break
+        case 'ArrowDown':
+          event.preventDefault()
+          controller.panBy(0, step)
+          break
+        case 'ArrowLeft':
+          event.preventDefault()
+          controller.panBy(-step, 0)
+          break
+        case 'ArrowRight':
+          event.preventDefault()
+          controller.panBy(step, 0)
+          break
+        case '+':
+        case '=':
+          event.preventDefault()
+          controller.zoomIn()
+          break
+        case '-':
+        case '_':
+          event.preventDefault()
+          controller.zoomOut()
+          break
+        case '0':
+          if (event.metaKey || event.ctrlKey) {
+            event.preventDefault()
+            controller.reset()
+          }
+          break
+        default:
+      }
+    },
+    [controller],
+  )
 
-const clampScale = (value: number): number =>
-  Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number.parseFloat(value.toFixed(4))))
+  return handleKeyDown
+}
