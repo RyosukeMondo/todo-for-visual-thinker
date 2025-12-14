@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { TodoStatus } from '@core/domain/Todo'
 
-import type { TaskBoardTask } from './components'
+import type { TaskBoardRelationship, TaskBoardTask } from './components'
 import { AddTodoForm, TaskBoard, TaskMetricsPanel } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
@@ -48,10 +48,27 @@ const sampleTodos: TaskBoardTask[] = [
   },
 ]
 
+const sampleRelationships: TaskBoardRelationship[] = [
+  {
+    id: 'rel-001',
+    fromId: 'todo-001',
+    toId: 'todo-002',
+    type: 'depends_on',
+    color: '#0ea5e9',
+  },
+  {
+    id: 'rel-002',
+    fromId: 'todo-003',
+    toId: 'todo-001',
+    type: 'blocks',
+    color: '#f97316',
+  },
+]
+
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
-  const state = useTaskFilters(sampleTodos, INITIAL_STATUSES)
+  const state = useTaskFilters(sampleTodos, INITIAL_STATUSES, sampleRelationships)
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
     () => sampleTodos[0]?.id,
@@ -76,6 +93,7 @@ function App() {
       state={state}
       hoveredTaskId={hoveredTaskId}
       selectedTaskId={selectedTaskId}
+      relationships={state.filteredRelationships}
       onSelectTask={handleSelectTask}
       onHoverTask={setHoveredTaskId}
     />
@@ -88,6 +106,7 @@ type LandingPageProps = Readonly<{
   state: UseTaskFiltersResult
   hoveredTaskId?: string
   selectedTaskId?: string
+  relationships?: readonly TaskBoardRelationship[]
   onHoverTask: (taskId: string | undefined) => void
   onSelectTask: (taskId: string) => void
 }>
@@ -96,6 +115,7 @@ const LandingPage = ({
   state,
   hoveredTaskId,
   selectedTaskId,
+  relationships,
   onSelectTask,
   onHoverTask,
 }: LandingPageProps): JSX.Element => (
@@ -112,13 +132,14 @@ const LandingPage = ({
           onClearCategories={state.resetCategories}
         />
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
-          <TaskBoardSection
-            tasks={state.filteredTasks}
-            hoveredTaskId={hoveredTaskId}
-            onHoverTask={onHoverTask}
-            onSelectTask={onSelectTask}
-            selectedTaskId={selectedTaskId}
-          />
+        <TaskBoardSection
+          tasks={state.filteredTasks}
+          relationships={relationships}
+          hoveredTaskId={hoveredTaskId}
+          onHoverTask={onHoverTask}
+          onSelectTask={onSelectTask}
+          selectedTaskId={selectedTaskId}
+        />
           <SidebarSection tasks={state.filteredTasks} />
         </div>
       </main>
@@ -140,6 +161,7 @@ const LandingHero = (): JSX.Element => (
 
 type TaskBoardSectionProps = Readonly<{
   tasks: readonly TaskBoardTask[]
+  relationships?: readonly TaskBoardRelationship[]
   hoveredTaskId?: string
   selectedTaskId?: string
   onSelectTask: (taskId: string) => void
@@ -148,6 +170,7 @@ type TaskBoardSectionProps = Readonly<{
 
 const TaskBoardSection = ({
   tasks,
+  relationships,
   hoveredTaskId,
   selectedTaskId,
   onSelectTask,
@@ -156,6 +179,7 @@ const TaskBoardSection = ({
   <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
     <TaskBoard
       tasks={tasks}
+      relationships={relationships}
       selectedId={selectedTaskId}
       hoverId={hoveredTaskId}
       onHover={onHoverTask}

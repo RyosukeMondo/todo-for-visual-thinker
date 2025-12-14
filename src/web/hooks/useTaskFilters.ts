@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 
 import type { TodoStatus } from '@core/domain/Todo'
 
-import type { TaskBoardTask } from '../components'
+import type { TaskBoardRelationship, TaskBoardTask } from '../components'
 import {
   applyTaskFilters,
   createFilterState,
@@ -14,6 +14,7 @@ import {
 export type UseTaskFiltersResult = Readonly<{
   filters: TaskFilterState
   filteredTasks: readonly TaskBoardTask[]
+  filteredRelationships: readonly TaskBoardRelationship[]
   toggleStatus: (status: TodoStatus) => void
   toggleCategory: (label: string) => void
   resetCategories: () => void
@@ -29,6 +30,7 @@ export type CategoryOption = Readonly<{
 export const useTaskFilters = (
   tasks: readonly TaskBoardTask[],
   initialStatuses: readonly TodoStatus[],
+  relationships: readonly TaskBoardRelationship[] = [],
 ): UseTaskFiltersResult => {
   const [filters, setFilters] = useState(() =>
     createFilterState({ statuses: initialStatuses }),
@@ -37,6 +39,11 @@ export const useTaskFilters = (
   const filteredTasks = useMemo(
     () => applyTaskFilters(tasks, filters),
     [tasks, filters],
+  )
+
+  const filteredRelationships = useMemo(
+    () => filterRelationships(filteredTasks, relationships),
+    [filteredTasks, relationships],
   )
 
   const toggleStatus = buildStatusToggle(setFilters)
@@ -51,6 +58,7 @@ export const useTaskFilters = (
   return {
     filters,
     filteredTasks,
+    filteredRelationships,
     toggleStatus,
     toggleCategory,
     resetCategories,
@@ -127,4 +135,19 @@ const deriveCategories = (
     }
   })
   return Array.from(seen.values())
+}
+
+const filterRelationships = (
+  tasks: readonly TaskBoardTask[],
+  relationships: readonly TaskBoardRelationship[],
+): TaskBoardRelationship[] => {
+  if (relationships.length === 0 || tasks.length === 0) {
+    return []
+  }
+  const visibleTaskIds = new Set(tasks.map((task) => task.id))
+  return relationships.filter(
+    (relationship) =>
+      visibleTaskIds.has(relationship.fromId) &&
+      visibleTaskIds.has(relationship.toId),
+  )
 }
