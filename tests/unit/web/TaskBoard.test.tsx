@@ -241,6 +241,20 @@ describe('buildConnectionSegments', () => {
     expect(highlighted?.emphasis).toBe('highlighted')
     expect(dimmed?.emphasis).toBe('dimmed')
   })
+
+  it('adds readable labels for each relationship', () => {
+    const relationships: TaskBoardRelationship[] = [
+      { id: 'rel-1', fromId: 'todo-1', toId: 'todo-2', type: 'blocks' },
+    ]
+    const tasks: TaskBoardTask[] = buildTasksWithOrbit()
+
+    const [segment] = buildConnectionSegments(tasks, relationships)
+
+    expect(segment?.label?.text).toBe('Blocks')
+    expect(segment?.label?.x).toBeGreaterThan(0)
+    expect(segment?.label?.rotation).toBeGreaterThan(-90)
+    expect(segment?.label?.rotation).toBeLessThan(90)
+  })
 })
 
 const buildTasksWithOrbit = (): TaskBoardTask[] => [

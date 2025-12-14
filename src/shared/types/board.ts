@@ -40,3 +40,42 @@ export type BoardSnapshotDTO = Readonly<{
   totals: SnapshotTotals
   viewport: SnapshotViewport
 }>
+
+export type BoardStatusCategoryDTO = Readonly<{
+  label: string
+  value: string
+  color?: string
+  count: number
+}>
+
+export type BoardDependencyBreakDTO = Readonly<{
+  id: string
+  missingEndpoint: 'source' | 'target'
+  missingTaskId: string
+  type: RelationshipType
+}>
+
+export type BoardDependencyHealthDTO = Readonly<{
+  total: number
+  byType: Record<RelationshipType, number>
+  dependentTasks: number
+  blockingTasks: number
+  blockedTasks: number
+  brokenCount: number
+  brokenRelationships: readonly BoardDependencyBreakDTO[]
+}>
+
+export type BoardStatusDTO = Readonly<{
+  statuses: Record<TodoStatus, number>
+  priorities: Record<TodoPriority, number>
+  categories: readonly BoardStatusCategoryDTO[]
+  totals: Readonly<{
+    total: number
+    active: number
+    completed: number
+    completionRate: number
+    lastUpdatedAt?: string
+    lastCreatedAt?: string
+  }>
+  dependencies: BoardDependencyHealthDTO
+}>

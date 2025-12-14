@@ -11,13 +11,14 @@ import type { CanvasPosition } from '@/core/domain/Todo'
 
 const createMemoryStream = () => {
   let buffer = ''
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      buffer += chunk.toString()
+      callback()
+    },
+  })
   return {
-    stream: new Writable({
-      write(chunk, _encoding, callback) {
-        buffer += chunk.toString()
-        callback()
-      },
-    }),
+    stream,
     read: () => buffer,
     reset: () => {
       buffer = ''
@@ -87,7 +88,6 @@ afterEach(() => {
 })
 
 describe('CLI add command', () => {
-
   it('persists todos through the CreateTodo use case and prints structured output', async () => {
     const execute = vi.fn().mockResolvedValue(buildCompletedTodo())
     const { program, listTodosExecute, planPosition } = buildProgram(execute, io)
@@ -102,10 +102,7 @@ describe('CLI add command', () => {
       position: { x: 120, y: 80 },
       status: 'completed',
     })
-    const result = JSON.parse(stdout.read().trim())
-    expect(result.success).toBe(true)
-    expect(result.data.todo.id).toBe('todo-123')
-    expect(result.data.todo.createdAt).toBe('2024-03-10T12:00:00.000Z')
+    expectSuccessfulAdd(stdout.read())
     expect(stderr.read()).toBe('')
     expect(process.exitCode).toBeUndefined()
     expect(listTodosExecute).not.toHaveBeenCalled()
@@ -158,3 +155,10 @@ describe('CLI add command', () => {
     )
   })
 })
+
+const expectSuccessfulAdd = (output: string) => {
+  const result = JSON.parse(output.trim())
+  expect(result.success).toBe(true)
+  expect(result.data.todo.id).toBe('todo-123')
+  expect(result.data.todo.createdAt).toBe('2024-03-10T12:00:00.000Z')
+}

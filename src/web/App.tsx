@@ -1,66 +1,150 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 
 import type { TodoStatus } from '@core/domain/Todo'
 
 import type { TaskBoardRelationship, TaskBoardTask } from './components'
-import { AddTodoForm, TaskBoard, TaskMetricsPanel } from './components'
+import {
+  AddTodoForm,
+  DependencyHealthPanel,
+  TaskBoard,
+  TaskMetricsPanel,
+} from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
 import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
 import { useBoardData, type BoardData } from './hooks/useBoardData'
 import { useCreateTodo } from './hooks/useCreateTodo'
 import { useUpdateTodoPosition } from './hooks/useUpdateTodoPosition'
+import { useBoardStatus } from './hooks/useBoardStatus'
 import type { AddTodoFormValues } from './components/AddTodoForm'
 import type { TaskBoardViewport } from './components/TaskBoardMinimap'
+import type { BoardStatusDTO } from '@shared/types/board'
 
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
+  const board = useBoardState()
+  const status = useBoardStatus()
+  const reloadBoardState = useCallback(async () => {
+    await Promise.all([board.reload(), status.reload()])
+  }, [board.reload, status.reload])
+  const filters = useTaskFilters(board.tasks, INITIAL_STATUSES, board.relationships)
+  const selection = useTaskSelection(filters.filteredTasks)
+  const creation = useCreationWorkflow(reloadBoardState)
+  const movement = useMovementWorkflow(board.setBoard, reloadBoardState)
+
+  if (board.isLoading) {
+    return <BoardLoadingState />
+  }
+
+  if (board.error) {
+    return <BoardErrorState message={board.error} onRetry={board.reload} />
+  }
+
+  return (
+    <LandingPage
+      state={filters}
+      hoveredTaskId={selection.hoveredTaskId}
+      selectedTaskId={selection.selectedTaskId}
+      relationships={filters.filteredRelationships}
+      initialViewport={board.viewport}
+      onSelectTask={selection.selectTask}
+      onHoverTask={selection.setHoveredTaskId}
+      onCreateTodo={creation.createTodo}
+      isCreatingTodo={creation.isCreating}
+      creationError={creation.error}
+      onMoveTask={movement.moveTask}
+      isMovePending={movement.isMovePending}
+      moveError={movement.error}
+      boardStatus={status.data}
+      isStatusLoading={status.isLoading}
+      statusError={status.error}
+    />
+  )
+}
+
+type BoardState = {
+  tasks: readonly TaskBoardTask[]
+  relationships: readonly TaskBoardRelationship[]
+  viewport?: TaskBoardViewport
+  isLoading: boolean
+  error?: string
+  reload: () => Promise<void>
+  setBoard: Dispatch<SetStateAction<BoardData | undefined>>
+}
+
+const useBoardState = (): BoardState => {
   const { data, isLoading, error, reload } = useBoardData()
   const [board, setBoard] = useState<BoardData | undefined>(data)
   useEffect(() => {
-    if (data) {
-      setBoard(data)
-    }
+    setBoard(data)
   }, [data])
-  const tasks = useMemo(() => board?.tasks ?? [], [board])
-  const relationships = useMemo(() => board?.relationships ?? [], [board])
-  const viewport = board?.viewport
-  const state = useTaskFilters(tasks, INITIAL_STATUSES, relationships)
+  return {
+    tasks: board?.tasks ?? [],
+    relationships: board?.relationships ?? [],
+    viewport: board?.viewport,
+    isLoading,
+    error,
+    reload,
+    setBoard,
+  }
+}
+
+const useTaskSelection = (tasks: readonly TaskBoardTask[]) => {
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
     () => tasks[0]?.id,
   )
-
   useEffect(() => {
-    if (state.filteredTasks.length === 0) {
+    const firstId = tasks[0]?.id
+    if (!firstId) {
       setSelectedTaskId(undefined)
       return
     }
-    if (!selectedTaskId || !state.filteredTasks.some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(state.filteredTasks[0]?.id)
+    if (!selectedTaskId || !tasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(firstId)
     }
-  }, [selectedTaskId, state.filteredTasks])
-
-  const handleSelectTask = useCallback((taskId: string) => {
+  }, [tasks, selectedTaskId])
+  const selectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId)
   }, [])
 
+  return {
+    hoveredTaskId,
+    setHoveredTaskId,
+    selectedTaskId,
+    selectTask,
+  }
+}
+
+const useCreationWorkflow = (reload: () => Promise<void>) => {
   const handleCreatedTodo = useCallback(async () => {
     await reload()
   }, [reload])
-
-  const { createTodo, isSubmitting: isCreatingTodo, error: createError } = useCreateTodo({
+  const { createTodo, isSubmitting, error } = useCreateTodo({
     onSuccess: handleCreatedTodo,
   })
-  const {
-    updatePosition,
-    isUpdating: isUpdatingPosition,
-    error: moveError,
-  } = useUpdateTodoPosition()
+  return {
+    createTodo,
+    isCreating: isSubmitting,
+    error,
+  }
+}
 
-  const handleMoveTask = useCallback(
-    async (taskId: string, position: TaskBoardTask['position']) => {
+const useMovementWorkflow = (
+  setBoard: Dispatch<SetStateAction<BoardData | undefined>>,
+  reload: () => Promise<void>,
+) => {
+  const { updatePosition, isUpdating, error } = useUpdateTodoPosition()
+
+  const optimisticallySetPosition = useCallback(
+    (taskId: string, position: TaskBoardTask['position']) => {
       setBoard((current) => {
         if (!current) return current
         return {
@@ -70,6 +154,12 @@ function App() {
           ),
         }
       })
+    },
+    [setBoard],
+  )
+
+  const persistPosition = useCallback(
+    async (taskId: string, position: TaskBoardTask['position']) => {
       try {
         await updatePosition(taskId, position)
         await reload()
@@ -81,31 +171,19 @@ function App() {
     [updatePosition, reload],
   )
 
-  if (isLoading) {
-    return <BoardLoadingState />
-  }
-
-  if (error) {
-    return <BoardErrorState message={error} onRetry={reload} />
-  }
-
-  return (
-    <LandingPage
-      state={state}
-      hoveredTaskId={hoveredTaskId}
-      selectedTaskId={selectedTaskId}
-      relationships={state.filteredRelationships}
-      initialViewport={viewport}
-      onSelectTask={handleSelectTask}
-      onHoverTask={setHoveredTaskId}
-      onCreateTodo={createTodo}
-      isCreatingTodo={isCreatingTodo}
-      creationError={createError}
-      onMoveTask={handleMoveTask}
-      isMovePending={isUpdatingPosition}
-      moveError={moveError}
-    />
+  const moveTask = useCallback(
+    async (taskId: string, position: TaskBoardTask['position']) => {
+      optimisticallySetPosition(taskId, position)
+      await persistPosition(taskId, position)
+    },
+    [optimisticallySetPosition, persistPosition],
   )
+
+  return {
+    moveTask,
+    isMovePending: isUpdating,
+    error,
+  }
 }
 
 export default App
@@ -124,6 +202,9 @@ type LandingPageProps = Readonly<{
   onMoveTask: (taskId: string, position: TaskBoardTask['position']) => Promise<void> | void
   isMovePending: boolean
   moveError?: string
+  boardStatus?: BoardStatusDTO
+  isStatusLoading: boolean
+  statusError?: string
 }>
 
 const LandingPage = ({
@@ -140,6 +221,9 @@ const LandingPage = ({
   onMoveTask,
   isMovePending,
   moveError,
+  boardStatus,
+  isStatusLoading,
+  statusError,
 }: LandingPageProps): JSX.Element => (
   <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
     <div className="container mx-auto px-4 py-10">
@@ -171,6 +255,9 @@ const LandingPage = ({
             onCreateTodo={onCreateTodo}
             isCreating={isCreatingTodo}
             errorMessage={creationError}
+            boardStatus={boardStatus}
+            isStatusLoading={isStatusLoading}
+            statusError={statusError}
           />
         </div>
       </main>
@@ -255,6 +342,9 @@ type SidebarSectionProps = Readonly<{
   onCreateTodo: (values: AddTodoFormValues) => Promise<void> | void
   isCreating: boolean
   errorMessage?: string
+  boardStatus?: BoardStatusDTO
+  isStatusLoading: boolean
+  statusError?: string
 }>
 
 const SidebarSection = ({
@@ -262,6 +352,9 @@ const SidebarSection = ({
   onCreateTodo,
   isCreating,
   errorMessage,
+  boardStatus,
+  isStatusLoading,
+  statusError,
 }: SidebarSectionProps): JSX.Element => (
   <div className="space-y-6 xl:sticky xl:top-12">
     <AddTodoForm
@@ -271,6 +364,11 @@ const SidebarSection = ({
       className="h-fit"
     />
     <TaskMetricsPanel tasks={tasks} />
+    <DependencyHealthPanel
+      status={boardStatus}
+      isLoading={isStatusLoading}
+      error={statusError}
+    />
   </div>
 )
 
@@ -291,7 +389,7 @@ const BoardErrorState = ({
   onRetry,
 }: {
   message: string
-  onRetry: () => void
+  onRetry: () => void | Promise<void>
 }): JSX.Element => (
   <div className="flex min-h-screen items-center justify-center bg-red-50">
     <div className="space-y-4 rounded-3xl bg-white p-8 text-center shadow-xl shadow-red-100">

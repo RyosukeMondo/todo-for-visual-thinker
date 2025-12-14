@@ -1,0 +1,79 @@
+# Requirements Document
+
+## Introduction
+
+The MVP foundation establishes the core capabilities of Todo for Visual Thinker: a local-first system that lets visual thinkers and automation agents manage tasks through a spatial canvas and CLI. This phase defines the fundamental domain models, persistence, CLI commands, and visual behaviors that every later feature depends on.
+
+## Alignment with Product Vision
+
+These requirements translate the steering direction into actionable outcomes by delivering (1) a spatially aware task model with color, icon, and size attributes; (2) a CLI-first workflow for agents and power users; (3) a high-performance infinite canvas with purposeful motion; and (4) visual task relationships plus categorization that reduce cognitive load. Together they uphold the vision of a visual-first, automation-friendly task manager backed by research on visual working memory.
+
+## Requirements
+
+### Requirement 1: Visual Task Entities with Local Persistence
+
+**User Story:** As a visual thinker, I want each task to remember its spatial position, color, icon, priority, and timestamps so that my board looks exactly the same whenever I return, even after a restart.
+
+#### Acceptance Criteria
+
+1. WHEN a task is created via CLI or UI THEN the system SHALL persist id, title (1-120 chars), description (optional), status, priority, color hex, icon id, and x/y coordinates in SQLite with createdAt/updatedAt timestamps.
+2. WHEN a task is updated (position, status, color, etc.) THEN the system SHALL validate inputs, update updatedAt within 50ms, and write the new state atomically to SQLite.
+3. IF the application is closed and reopened THEN the system SHALL reload all tasks from SQLite and restore their spatial positions, categories, and visual encodings without loss.
+
+### Requirement 2: CLI-First Task Operations with Structured Output
+
+**User Story:** As an automation agent, I want to create, list, update, and delete tasks entirely through the CLI with machine-readable responses so that I can script workflows without the web UI.
+
+#### Acceptance Criteria
+
+1. WHEN `todo task create` runs with JSON or flags THEN the CLI SHALL return a JSON payload containing the new task’s fields, UUID, and metadata plus an exit code 0 on success.
+2. WHEN `todo task list` executes with optional filters (status, category, priority) THEN the CLI SHALL output deterministic JSON sorted by priority desc + createdAt asc, and support `--pretty` human-readable mode.
+3. IF invalid input is supplied (e.g., missing title, bad color) THEN the CLI SHALL emit a structured ValidationError (code, message, context) with exit code 1 and no partial writes.
+
+### Requirement 3: Infinite Canvas Interaction Layer
+
+**User Story:** As a visual thinker, I want to drag, zoom, and complete tasks on an infinite canvas with smooth motion so that planning feels natural and low-friction.
+
+#### Acceptance Criteria
+
+1. WHEN a user drags a task card THEN the canvas SHALL render the movement at 60fps, snap within 8px tolerance when snap-to-grid is on, and persist the new coordinates immediately.
+2. IF the board contains up to 100 tasks THEN initial render SHALL occur in under 500ms and subsequent zoom/pan interactions SHALL respond within 100ms latency.
+3. WHEN a task status changes to completed THEN the card SHALL animate to a subdued style (reduced opacity, check indicator) while remaining selectable for review/undo.
+
+### Requirement 4: Visual Relationships and Categorization
+
+**User Story:** As a visual thinker, I want to connect tasks with dependencies and filter by color-coded categories so that I instantly understand what blocks progress.
+
+#### Acceptance Criteria
+
+1. WHEN a relationship (depends-on, blocks, related-to) is created between two tasks via drag or CLI THEN the system SHALL draw a curved arrow with direction, store it in SQLite relationships table, and update both tasks’ metadata.
+2. IF a dependency would create a circular chain THEN the system SHALL block the action, surface a descriptive error, and keep the board unchanged.
+3. WHEN users toggle a category/status filter THEN only matching tasks and their relationships SHALL remain visible while layout stability (no unintended repositioning) is preserved.
+
+## Non-Functional Requirements
+
+### Code Architecture and Modularity
+- **Single Responsibility Principle**: Each module (domain entity, repository, CLI command, React component) SHALL encapsulate one concern with strict dependency injection per tech.md.
+- **Modular Design**: Core domain logic SHALL be UI-agnostic, consumed by both CLI and web layers via ports/adapters. Shared types live in `src/shared`.
+- **Dependency Management**: External adapters (SQLite repository, loggers) SHALL implement narrow interfaces to keep business logic testable and interchangeable.
+- **Clear Interfaces**: Ports SHALL define full contracts (methods, DTOs, error codes) with TypeScript types exported for reuse.
+
+### Performance
+- CLI CRUD commands SHALL complete in <50ms with warm cache; querying 1000 tasks SHALL stay under 200ms.
+- Canvas renders of 100 tasks SHALL stay under 500ms; 1000 tasks under 2000ms while maintaining 60fps interactions.
+- Database writes SHALL be batched or wrapped in transactions to avoid UI hitches (>5ms blocking on main thread).
+
+### Security
+- All inputs SHALL pass schema validation (Zod/io-ts) before persistence.
+- CLI SHALL avoid logging sensitive file paths or environment data; JSON logs use structured fields only.
+- SQLite access SHALL use parameterized queries to prevent injection.
+
+### Reliability
+- Domain and CLI layers SHALL reach ≥80% automated test coverage (≥90% for core use cases).
+- CRUD operations SHALL support undo/redo (or history events) to recover from accidental moves.
+- Critical errors SHALL emit actionable messages and fail fast without corrupting persistence files.
+
+### Usability
+- UI SHALL satisfy WCAG 2.2 AA (contrast 4.5:1 minimum) with keyboard shortcuts for all canvas actions.
+- Canvas interactions SHALL provide tactile feedback (hover, focus indicators, microinteractions) and optional reduced-motion mode.
+- CLI help (`--help`) SHALL document all flags, filters, and JSON fields with examples for agents.

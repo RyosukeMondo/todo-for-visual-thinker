@@ -13,64 +13,84 @@ import type {
 import type { CanvasPosition, TodoPriority, TodoStatus } from '@core/domain/Todo'
 import { ValidationError } from '@core/errors'
 import { SnapshotPresenter } from '@server/presenters/SnapshotPresenter'
+import { BoardStatusPresenter } from '@server/presenters/BoardStatusPresenter'
 import { CreateTodoController } from '@server/controllers/CreateTodoController'
 import { UpdateTodoController } from '@server/controllers/UpdateTodoController'
 import { planSpiralPosition } from '@server/placement/SpiralPositionPlanner'
 
-export const boardApiPlugin = (): Plugin => {
+export const boardApiPlugin = (): Plugin => ({
+  name: 'board-api-plugin',
+  configureServer(server) {
+    const context = createServerContext()
+    server.middlewares.use('/api/status', context.handleStatus)
+    server.middlewares.use('/api/board', context.handleSnapshot)
+    server.middlewares.use('/api/todos', context.handleCreate)
+    server.middlewares.use('/api/todos/', context.handleUpdate)
+    server.httpServer?.once('close', context.shutdown)
+  },
+})
+
+const createServerContext = () => {
+  const runtime = createRuntime()
+  const presenter = new SnapshotPresenter()
+  const statusPresenter = new BoardStatusPresenter()
+  const createController = new CreateTodoController({
+    createTodo: runtime.createTodo,
+    listTodos: runtime.listTodos,
+    planPosition: planSpiralPosition,
+  })
+  const updateController = new UpdateTodoController({
+    updateTodo: runtime.updateTodo,
+  })
+
   return {
-    name: 'board-api-plugin',
-    configureServer(server) {
-      const runtime = createRuntime()
-      const presenter = new SnapshotPresenter()
-      const createController = new CreateTodoController({
-        createTodo: runtime.createTodo,
-        listTodos: runtime.listTodos,
-        planPosition: planSpiralPosition,
-      })
-      const updateController = new UpdateTodoController({
-        updateTodo: runtime.updateTodo,
-      })
-
-      server.middlewares.use('/api/board', async (_req, res) => {
-        await handleBoardSnapshot(res, runtime, presenter)
-      })
-
-      server.middlewares.use('/api/todos', async (req, res) => {
-        if (req.method !== 'POST') {
-          respondJson(res, 405, {
-            success: false,
-            error: { code: 'METHOD_NOT_ALLOWED', message: 'Only POST supported' },
-          })
-          return
-        }
-        await handleCreateTodo(req, res, createController)
-      })
-
-      server.middlewares.use('/api/todos/', async (req, res, next) => {
-        if (!req.url) {
-          next()
-          return
-        }
-        const match = /^\/([^/?#]+)/.exec(req.url)
-        if (!match) {
-          next()
-          return
-        }
-        const todoId = match[1]
-        if (req.method !== 'PATCH') {
-          respondJson(res, 405, {
-            success: false,
-            error: { code: 'METHOD_NOT_ALLOWED', message: 'Only PATCH supported' },
-          } satisfies UpdateTodoResultDTO)
-          return
-        }
-        await handleUpdateTodo(req, res, todoId, updateController)
-      })
-
-      server.httpServer?.once('close', () => runtime.shutdown())
+    handleSnapshot: async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method !== 'GET') {
+        respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
+        return
+      }
+      await handleBoardSnapshot(res, runtime, presenter)
     },
+    handleStatus: async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method !== 'GET') {
+        respondStatusError(res, 'METHOD_NOT_ALLOWED', 'Only GET supported', 405)
+        return
+      }
+      await handleBoardStatus(res, runtime, statusPresenter)
+    },
+    handleCreate: async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method !== 'POST') {
+        respondJson(res, 405, {
+          success: false,
+          error: { code: 'METHOD_NOT_ALLOWED', message: 'Only POST supported' },
+        })
+        return
+      }
+      await handleCreateTodo(req, res, createController)
+    },
+    handleUpdate: async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+      const todoId = extractTodoId(req.url)
+      if (!todoId) {
+        next()
+        return
+      }
+      if (req.method !== 'PATCH') {
+        respondJson(res, 405, {
+          success: false,
+          error: { code: 'METHOD_NOT_ALLOWED', message: 'Only PATCH supported' },
+        } satisfies UpdateTodoResultDTO)
+        return
+      }
+      await handleUpdateTodo(req, res, todoId, updateController)
+    },
+    shutdown: () => runtime.shutdown(),
   }
+}
+
+const extractTodoId = (url?: string | null): string | undefined => {
+  if (!url) return undefined
+  const match = /^\/([^/?#]+)/.exec(url)
+  return match?.[1]
 }
 
 const handleBoardSnapshot = async (
@@ -87,6 +107,23 @@ const handleBoardSnapshot = async (
     console.error('Board API error', error)
     res.statusCode = 500
     res.end(JSON.stringify({ error: 'BOARD_SNAPSHOT_FAILED' }))
+  }
+}
+
+const handleBoardStatus = async (
+  res: ServerResponse,
+  runtime: ReturnType<typeof createRuntime>,
+  presenter: BoardStatusPresenter,
+): Promise<void> => {
+  try {
+    const snapshot = await runtime.getBoardStatus.execute()
+    const payload = presenter.present(snapshot)
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify(payload))
+  } catch (error) {
+    console.error('Board status API error', error)
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: 'BOARD_STATUS_FAILED' }))
   }
 }
 
@@ -188,6 +225,17 @@ const mapCreateTodoPayload = (body: unknown): CreateTodoRequestDTO => {
     status: parseOptionalStatus(record.status),
     priority: parseOptionalPriority(record.priority),
   }
+}
+
+const respondStatusError = (
+  res: ServerResponse,
+  code: string,
+  message: string,
+  status: number,
+): void => {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ success: false, error: { code, message } }))
 }
 
 const mapUpdateTodoPayload = (

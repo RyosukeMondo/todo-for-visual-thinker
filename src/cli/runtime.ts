@@ -102,7 +102,10 @@ const buildUseCases = ({
   const listTodos = new ListTodos({ repository })
   const listCategories = new ListCategories({ repository: categories })
   const listRelationships = new ListRelationships({ repository: relationships })
-  const getBoardStatus = new GetBoardStatus({ repository })
+  const getBoardStatus = new GetBoardStatus({
+    repository,
+    relationships,
+  })
   const getBoardSnapshot = new GetBoardSnapshot({ repository, relationships })
   const deleteTodo = new DeleteTodo({ repository, relationships })
   const deleteRelationship = new DeleteRelationship({

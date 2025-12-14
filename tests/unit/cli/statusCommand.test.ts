@@ -34,6 +34,49 @@ const buildProgram = (execute: ReturnType<typeof vi.fn>): Command => {
   return program
 }
 
+const buildSnapshotResult = () => ({
+  total: 4,
+  active: 3,
+  completed: 1,
+  completionRate: 0.25,
+  statuses: { pending: 2, in_progress: 1, completed: 1 },
+  priorities: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 },
+  categories: [{ label: 'Strategy', value: 'strategy', color: '#f97316', count: 2 }],
+  lastUpdatedAt: new Date('2024-02-03T14:00:00Z'),
+  lastCreatedAt: new Date('2024-02-03T13:00:00Z'),
+  dependencies: {
+    total: 4,
+    byType: {
+      depends_on: 2,
+      blocks: 1,
+      related_to: 1,
+    },
+    dependentTasks: 2,
+    blockingTasks: 1,
+    blockedTasks: 1,
+    brokenCount: 1,
+    brokenRelationships: [
+      {
+        id: 'rel-missing-source',
+        missingEndpoint: 'source',
+        missingTaskId: 'ghost-1',
+        type: 'depends_on',
+      },
+    ],
+  },
+})
+
+const expectSuccessfulSnapshot = (stdoutContent: string) => {
+  const payload = JSON.parse(stdoutContent.trim())
+  expect(payload.success).toBe(true)
+  expect(payload.data.meta.total).toBe(4)
+  expect(payload.data.meta.completionRate).toBe(0.25)
+  expect(payload.data.categories[0].label).toBe('Strategy')
+  expect(payload.data.dependencies.total).toBe(4)
+  expect(payload.data.dependencies.byType.depends_on).toBe(2)
+  expect(payload.data.dependencies.brokenRelationships).toHaveLength(1)
+}
+
 beforeEach(() => {
   stdout.reset()
   stderr.reset()
@@ -42,27 +85,13 @@ beforeEach(() => {
 
 describe('CLI status command', () => {
   it('outputs structured snapshot payloads', async () => {
-    const execute = vi.fn().mockResolvedValue({
-      total: 4,
-      active: 3,
-      completed: 1,
-      completionRate: 0.25,
-      statuses: { pending: 2, in_progress: 1, completed: 1 },
-      priorities: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 },
-      categories: [{ label: 'Strategy', value: 'strategy', color: '#f97316', count: 2 }],
-      lastUpdatedAt: new Date('2024-02-03T14:00:00Z'),
-      lastCreatedAt: new Date('2024-02-03T13:00:00Z'),
-    })
+    const execute = vi.fn().mockResolvedValue(buildSnapshotResult())
     const program = buildProgram(execute)
 
     await program.parseAsync(['node', 'cli', 'status'])
 
     expect(execute).toHaveBeenCalled()
-    const payload = JSON.parse(stdout.read().trim())
-    expect(payload.success).toBe(true)
-    expect(payload.data.meta.total).toBe(4)
-    expect(payload.data.meta.completionRate).toBe(0.25)
-    expect(payload.data.categories[0].label).toBe('Strategy')
+    expectSuccessfulSnapshot(stdout.read())
   })
 
   it('emits structured errors and sets exit code on failure', async () => {

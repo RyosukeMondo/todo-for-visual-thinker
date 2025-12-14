@@ -22,13 +22,24 @@ export const buildCliProgram = (
   runtime: CliRuntime,
   io: CliIO = defaultIO,
 ): Command => {
-  const program = new Command()
+  const program = configureMetadata()
+  registerTodoCommands(program, runtime, io)
+  registerRelationshipCommands(program, runtime, io)
+  registerBoardCommands(program, runtime, io)
+  return program
+}
 
-  program
+const configureMetadata = (): Command =>
+  new Command()
     .name('todo-visual-thinker')
     .description('Neuroscience-backed todo list for visual thinkers')
     .version('0.1.0')
 
+const registerTodoCommands = (
+  program: Command,
+  runtime: CliRuntime,
+  io: CliIO,
+): void => {
   registerAddTodoCommand(
     program,
     {
@@ -38,6 +49,10 @@ export const buildCliProgram = (
     },
     io,
   )
+  registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
+  registerDeleteTodosCommand(program, { deleteTodo: runtime.deleteTodo }, io)
+  registerUpdateTodoCommand(program, { updateTodo: runtime.updateTodo }, io)
+  registerInitDbCommand(program, io)
   registerAddCategoryCommand(
     program,
     { createCategory: runtime.createCategory },
@@ -48,10 +63,13 @@ export const buildCliProgram = (
     { listCategories: runtime.listCategories },
     io,
   )
-  registerInitDbCommand(program, io)
-  registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
-  registerDeleteTodosCommand(program, { deleteTodo: runtime.deleteTodo }, io)
-  registerUpdateTodoCommand(program, { updateTodo: runtime.updateTodo }, io)
+}
+
+const registerRelationshipCommands = (
+  program: Command,
+  runtime: CliRuntime,
+  io: CliIO,
+): void => {
   registerAddRelationshipCommand(
     program,
     { createRelationship: runtime.createRelationship },
@@ -72,8 +90,13 @@ export const buildCliProgram = (
     { updateRelationship: runtime.updateRelationship },
     io,
   )
+}
+
+const registerBoardCommands = (
+  program: Command,
+  runtime: CliRuntime,
+  io: CliIO,
+): void => {
   registerStatusCommand(program, { getBoardStatus: runtime.getBoardStatus }, io)
   registerSnapshotCommand(program, { getBoardSnapshot: runtime.getBoardSnapshot }, io)
-
-  return program
 }

@@ -19,7 +19,7 @@ export type UseBoardDataResult = Readonly<{
   data?: BoardData
   isLoading: boolean
   error?: string
-  reload: () => void
+  reload: () => Promise<void>
 }>
 
 export const useBoardData = (): UseBoardDataResult => {

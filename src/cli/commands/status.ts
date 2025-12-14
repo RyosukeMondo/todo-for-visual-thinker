@@ -54,4 +54,17 @@ const serializeSnapshot = (
   statuses: snapshot.statuses,
   priorities: snapshot.priorities,
   categories: snapshot.categories,
+  dependencies: serializeDependencies(snapshot.dependencies),
+})
+
+const serializeDependencies = (
+  input: Awaited<ReturnType<GetBoardStatus['execute']>>['dependencies'],
+) => ({
+  total: input.total,
+  byType: input.byType,
+  dependentTasks: input.dependentTasks,
+  blockingTasks: input.blockingTasks,
+  blockedTasks: input.blockedTasks,
+  brokenCount: input.brokenCount,
+  brokenRelationships: input.brokenRelationships,
 })

@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/mvp-foundation/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-12-14T07:22:42.929Z",
+      "trigger": "initial",
+      "approvalId": "approval_1765696962923_s4bai6oy9",
+      "approvalTitle": "mvp-foundation requirements"
+    }
+  ]
+}

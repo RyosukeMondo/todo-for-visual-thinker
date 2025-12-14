@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { Relationship } from '@/core/domain/Relationship'
 import { Todo } from '@/core/domain/Todo'
 import type { TodoRepository } from '@/core/ports'
 import type { ListTodosQuery } from '@/core/ports/TodoRepository'
+import type {
+  RelationshipQuery,
+  RelationshipRepository,
+} from '@/core/ports/RelationshipRepository'
 import { GetBoardStatus } from '@/core/usecases/GetBoardStatus'
 
-class RecordingRepository implements TodoRepository {
+class RecordingTodoRepository implements TodoRepository {
   public readonly calls: ListTodosQuery[] = []
 
   constructor(private readonly seed: readonly Todo[]) {}
@@ -36,6 +41,45 @@ class RecordingRepository implements TodoRepository {
   }
 }
 
+class RecordingRelationshipRepository implements RelationshipRepository {
+  public readonly calls: RelationshipQuery[] = []
+
+  constructor(private readonly seed: readonly Relationship[]) {}
+
+  async list(query: RelationshipQuery = {}): Promise<Relationship[]> {
+    this.calls.push(query)
+    const start = query.offset ?? 0
+    const end = query.limit ? start + query.limit : this.seed.length
+    return this.seed
+      .slice(start, end)
+      .map((relationship) => Relationship.restore(relationship.toJSON()))
+  }
+
+  async save(): Promise<void> {
+    throw new Error('Not implemented')
+  }
+
+  async findById(): Promise<Relationship | null> {
+    return null
+  }
+
+  async findBetween(): Promise<Relationship | null> {
+    return null
+  }
+
+  async delete(): Promise<void> {
+    throw new Error('Not implemented')
+  }
+
+  async deleteByTodoId(): Promise<void> {
+    throw new Error('Not implemented')
+  }
+
+  async listByTodoIds(): Promise<Relationship[]> {
+    throw new Error('Not implemented')
+  }
+}
+
 const buildTodo = (overrides: Partial<Parameters<typeof Todo.create>[0]> = {}) =>
   Todo.create({
     id: overrides.id ?? crypto.randomUUID(),
@@ -49,7 +93,7 @@ const buildTodo = (overrides: Partial<Parameters<typeof Todo.create>[0]> = {}) =
     createdAt: overrides.createdAt,
   })
 
-const buildSeedData = (): Todo[] => [
+const buildTodoSeed = (): Todo[] => [
   buildTodo({
     id: 'todo-1',
     status: 'pending',
@@ -77,17 +121,64 @@ const buildSeedData = (): Todo[] => [
 ]
 
 describe('GetBoardStatus use case', () => {
-  let repository: RecordingRepository
+  let repository: RecordingTodoRepository
+  let relationships: RecordingRelationshipRepository
 
   beforeEach(() => {
-    repository = new RecordingRepository(buildSeedData())
+    repository = new RecordingTodoRepository(buildTodoSeed())
+    relationships = new RecordingRelationshipRepository(buildRelationshipSeed())
   })
 
-  it('aggregates snapshot metrics across statuses, priorities, and categories', async () => {
-    const useCase = new GetBoardStatus({ repository })
+  it('aggregates snapshot metrics across statuses, priorities, categories, and dependencies', async () => {
+    const snapshot = await createUseCase().execute()
 
-    const snapshot = await useCase.execute()
+    expectCoreCounts(snapshot)
+    expect(snapshot.categories).toEqual([
+      { label: 'Strategy', value: 'strategy', color: '#f97316', count: 2 },
+      { label: 'Design', value: 'design', color: '#60a5fa', count: 1 },
+    ])
+    expect(snapshot.lastCreatedAt?.toISOString()).toBe('2024-02-05T10:00:00.000Z')
+    expect(snapshot.dependencies).toEqual(
+      expect.objectContaining({
+        total: 3,
+        byType: { depends_on: 2, blocks: 1, related_to: 0 },
+        dependentTasks: 2,
+        blockingTasks: 1,
+        blockedTasks: 1,
+        brokenCount: 1,
+      }),
+    )
+    expect(snapshot.dependencies.brokenRelationships[0]).toEqual({
+      id: 'rel-3',
+      missingEndpoint: 'source',
+      missingTaskId: 'ghost',
+      type: 'depends_on',
+    })
+  })
 
+  it('streams todos and relationships in batches', async () => {
+    const snapshot = await createUseCase({ batchSize: 2 }).execute()
+
+    expect(repository.calls).toEqual([
+      { limit: 2, offset: 0 },
+      { limit: 2, offset: 2 },
+    ])
+    expect(relationships.calls).toEqual([
+      { limit: 2, offset: 0 },
+      { limit: 2, offset: 2 },
+    ])
+    expect(snapshot.lastUpdatedAt).toBeInstanceOf(Date)
+    expect(snapshot.completionRate).toBeCloseTo(1 / 3)
+  })
+
+  const createUseCase = (overrides: Partial<{ batchSize: number }> = {}) =>
+    new GetBoardStatus({
+      repository,
+      relationships,
+      batchSize: overrides.batchSize,
+    })
+
+  const expectCoreCounts = (snapshot: Awaited<ReturnType<GetBoardStatus['execute']>>) => {
     expect(snapshot.total).toBe(3)
     expect(snapshot.active).toBe(2)
     expect(snapshot.completed).toBe(1)
@@ -98,23 +189,29 @@ describe('GetBoardStatus use case', () => {
     })
     expect(snapshot.priorities[5]).toBe(1)
     expect(snapshot.priorities[2]).toBe(1)
-    expect(snapshot.categories).toEqual([
-      { label: 'Strategy', value: 'strategy', color: '#f97316', count: 2 },
-      { label: 'Design', value: 'design', color: '#60a5fa', count: 1 },
-    ])
-    expect(snapshot.lastCreatedAt?.toISOString()).toBe('2024-02-05T10:00:00.000Z')
-  })
-
-  it('streams todos in batches and tracks latest timestamps', async () => {
-    const useCase = new GetBoardStatus({ repository, batchSize: 2 })
-
-    const snapshot = await useCase.execute()
-
-    expect(repository.calls).toEqual([
-      { limit: 2, offset: 0 },
-      { limit: 2, offset: 2 },
-    ])
-    expect(snapshot.lastUpdatedAt).toBeInstanceOf(Date)
-    expect(snapshot.completionRate).toBeCloseTo(1 / 3)
-  })
+  }
 })
+
+const buildRelationshipSeed = (): Relationship[] => [
+  Relationship.create({
+    id: 'rel-1',
+    fromId: 'todo-2',
+    toId: 'todo-1',
+    type: 'depends_on',
+    createdAt: new Date('2024-02-03T10:05:00Z'),
+  }),
+  Relationship.create({
+    id: 'rel-2',
+    fromId: 'todo-3',
+    toId: 'todo-2',
+    type: 'blocks',
+    createdAt: new Date('2024-02-05T10:05:00Z'),
+  }),
+  Relationship.create({
+    id: 'rel-3',
+    fromId: 'ghost',
+    toId: 'todo-1',
+    type: 'depends_on',
+    createdAt: new Date('2024-02-06T10:05:00Z'),
+  }),
+]

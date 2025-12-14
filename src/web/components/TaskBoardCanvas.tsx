@@ -187,12 +187,56 @@ const BoardNodeButton = ({
   isMovePending,
   viewportScale = 1,
 }: BoardNodeButtonProps): JSX.Element => {
-  const nodeStyle = useMemo(
-    () => ({
-      transform: `translate3d(${task.position.x}px, ${task.position.y}px, 0)` as const,
-    }),
-    [task.position.x, task.position.y],
+  const nodeStyle = useMemo(() => buildNodeTransform(task.position), [task.position.x, task.position.y])
+  const dragHandlers = useTaskDragHandlers({
+    task,
+    onSelect,
+    onMoveTask,
+    viewportScale,
+  })
+
+  return (
+    <button
+      type="button"
+      className="task-node pointer-events-auto absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 border-none bg-transparent p-0"
+      style={nodeStyle}
+      onClick={() => onSelect?.(task.id)}
+      onFocus={() => onHover?.(task.id)}
+      onBlur={() => onHover?.(undefined)}
+      onMouseEnter={() => onHover?.(task.id)}
+      onMouseLeave={() => onHover?.(undefined)}
+      data-task-id={task.id}
+      aria-pressed={isSelected}
+      aria-busy={isMovePending}
+      draggable={Boolean(onMoveTask)}
+      onDragStart={dragHandlers.handleDragStart}
+      onDragEnd={dragHandlers.handleDragEnd}
+    >
+      <TaskCard
+        {...task}
+        position={task.position}
+        isSelected={isSelected}
+        isDimmed={isDimmed}
+      />
+    </button>
   )
+}
+
+const buildNodeTransform = (position: CanvasPosition): CSSProperties => ({
+  transform: `translate3d(${position.x}px, ${position.y}px, 0)` as const,
+})
+
+const useTaskDragHandlers = ({
+  task,
+  onSelect,
+  onMoveTask,
+  viewportScale,
+}: {
+  task: TaskBoardTask
+  onSelect?: (taskId: string) => void
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  viewportScale: number
+}) => {
   const dragState = useRef<{
     startX: number
     startY: number
@@ -211,10 +255,9 @@ const BoardNodeButton = ({
         originX: task.position.x,
         originY: task.position.y,
       }
-      // Provide dummy data for Firefox compatibility
       event.dataTransfer.setData('text/plain', task.id)
     },
-    [onSelect, task.id, task.position.x, task.position.y],
+    [onSelect, task.id, task.position],
   )
 
   const handleDragEnd = useCallback(
@@ -238,31 +281,7 @@ const BoardNodeButton = ({
     [onMoveTask, task.id, viewportScale],
   )
 
-  return (
-    <button
-      type="button"
-      className="task-node pointer-events-auto absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 border-none bg-transparent p-0"
-      style={nodeStyle}
-      onClick={() => onSelect?.(task.id)}
-      onFocus={() => onHover?.(task.id)}
-      onBlur={() => onHover?.(undefined)}
-      onMouseEnter={() => onHover?.(task.id)}
-      onMouseLeave={() => onHover?.(undefined)}
-      data-task-id={task.id}
-      aria-pressed={isSelected}
-      aria-busy={isMovePending}
-      draggable={Boolean(onMoveTask)}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <TaskCard
-        {...task}
-        position={task.position}
-        isSelected={isSelected}
-        isDimmed={isDimmed}
-      />
-    </button>
-  )
+  return { handleDragStart, handleDragEnd }
 }
 
 type BoardConnectionsProps = Readonly<{
@@ -330,18 +349,34 @@ const BoardConnectionPath = ({
   segment: ConnectionSegment
   markerId: string
 }): JSX.Element => (
-  <path
-    d={segment.path}
-    stroke={segment.stroke}
-    strokeWidth={segment.emphasis === 'highlighted' ? 5 : 3.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    fill="none"
-    data-relationship-id={segment.id}
-    markerEnd={`url(#${markerId})`}
-    className={segment.emphasis === 'dimmed' ? 'opacity-40 drop-shadow-sm' : 'drop-shadow-sm'}
-    strokeDasharray={segment.dasharray}
-  />
+  <g>
+    <path
+      d={segment.path}
+      stroke={segment.stroke}
+      strokeWidth={segment.emphasis === 'highlighted' ? 5 : 3.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      markerEnd={`url(#${markerId})`}
+      className={segment.emphasis === 'dimmed' ? 'opacity-40 drop-shadow-sm' : 'drop-shadow-sm'}
+      strokeDasharray={segment.dasharray}
+      data-relationship-id={segment.id}
+    />
+    {segment.label && (
+      <text
+        x={segment.label.x}
+        y={segment.label.y}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={12}
+        fontWeight={600}
+        transform={`rotate(${segment.label.rotation.toFixed(2)}, ${segment.label.x}, ${segment.label.y})`}
+        className={`fill-slate-800 ${segment.emphasis === 'dimmed' ? 'opacity-30' : 'opacity-80'}`}
+      >
+        {segment.label.text}
+      </text>
+    )}
+  </g>
 )
 
 type BoardKeyboardContext = Readonly<{
