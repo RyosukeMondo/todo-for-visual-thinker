@@ -1,9 +1,12 @@
+import { useState } from 'react'
+
 import type { TodoStatus } from '@core/domain/Todo'
 
 import type { TaskBoardTask } from './components'
-import { TaskBoard } from './components'
+import { AddTodoForm, TaskBoard } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
+import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
 
 const sampleTodos: TaskBoardTask[] = [
   {
@@ -48,46 +51,69 @@ const sampleTodos: TaskBoardTask[] = [
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
-  const {
-    filters,
-    filteredTasks,
-    toggleStatus,
-    toggleCategory,
-    resetCategories,
-    categories,
-  } = useTaskFilters(sampleTodos, INITIAL_STATUSES)
+  const state = useTaskFilters(sampleTodos, INITIAL_STATUSES)
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
-      <div className="container mx-auto px-4 py-10">
-        <header className="mb-12 text-center">
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary-500">
-            Visual-first productivity
-          </p>
-          <h1 className="mt-3 text-4xl font-bold text-gray-900">
-            Todo for Visual Thinker
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Neuroscience-backed task management for spatial minds, built in the open.
-          </p>
-        </header>
-
-        <main className="mx-auto max-w-6xl space-y-8">
-          <TaskFilters
-            statuses={INITIAL_STATUSES}
-            categories={categories}
-            value={filters}
-            onStatusToggle={toggleStatus}
-            onCategoryToggle={toggleCategory}
-            onClearCategories={resetCategories}
-          />
-          <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
-            <TaskBoard tasks={filteredTasks} selectedId="todo-001" />
-          </section>
-        </main>
-      </div>
-    </div>
+    <LandingPage
+      state={state}
+      hoveredTaskId={hoveredTaskId}
+      onHoverTask={setHoveredTaskId}
+    />
   )
 }
 
 export default App
+
+type LandingPageProps = Readonly<{
+  state: UseTaskFiltersResult
+  hoveredTaskId?: string
+  onHoverTask: (taskId: string | undefined) => void
+}>
+
+const LandingPage = ({
+  state,
+  hoveredTaskId,
+  onHoverTask,
+}: LandingPageProps): JSX.Element => (
+  <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
+    <div className="container mx-auto px-4 py-10">
+      <header className="mb-12 text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary-500">
+          Visual-first productivity
+        </p>
+        <h1 className="mt-3 text-4xl font-bold text-gray-900">
+          Todo for Visual Thinker
+        </h1>
+        <p className="mt-4 text-lg text-gray-600">
+          Neuroscience-backed task management for spatial minds, built in the open.
+        </p>
+      </header>
+
+      <main className="mx-auto max-w-6xl space-y-8">
+        <TaskFilters
+          statuses={INITIAL_STATUSES}
+          categories={state.categories}
+          value={state.filters}
+          onStatusToggle={state.toggleStatus}
+          onCategoryToggle={state.toggleCategory}
+          onClearCategories={state.resetCategories}
+        />
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
+          <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
+            <TaskBoard
+              tasks={state.filteredTasks}
+              selectedId="todo-001"
+              hoverId={hoveredTaskId}
+              onHover={onHoverTask}
+            />
+          </section>
+          <AddTodoForm
+            onSubmit={(values) => console.info('Add todo', values)}
+            className="h-fit"
+          />
+        </div>
+      </main>
+    </div>
+  </div>
+)

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { TaskBoardRelationship, TaskBoardTask } from '@/web/components'
 import { TaskBoard } from '@/web/components'
+import { buildConnectionSegments } from '@/web/components/TaskBoard.connections'
 
 const sampleTasks: TaskBoardTask[] = [
   {
@@ -140,4 +141,59 @@ describe('TaskBoard relationships', () => {
       container.querySelector('path[data-relationship-id="rel-missing"]'),
     ).toBeNull()
   })
+
+  it('dims unrelated connections when a task is hovered', () => {
+    const relationships: TaskBoardRelationship[] = [
+      { id: 'rel-1', fromId: 'todo-1', toId: 'todo-2', type: 'depends_on' },
+      { id: 'rel-2', fromId: 'todo-2', toId: 'todo-3', type: 'related_to' },
+    ]
+    const tasks: TaskBoardTask[] = buildTasksWithOrbit()
+
+    const { container, getByText } = render(
+      <TaskBoard
+        tasks={tasks}
+        relationships={relationships}
+        onHover={() => {}}
+      />,
+    )
+
+    fireEvent.mouseEnter(getByText('Anchor point'))
+
+    const highlighted = container.querySelector('path[data-relationship-id="rel-1"]')
+    const dimmed = container.querySelector('path[data-relationship-id="rel-2"]')
+    expect(highlighted?.getAttribute('class')).not.toContain('opacity-40')
+    expect(dimmed?.getAttribute('class')).toContain('opacity-40')
+  })
 })
+
+describe('buildConnectionSegments', () => {
+  it('marks connections as highlighted or dimmed relative to focus task', () => {
+    const relationships: TaskBoardRelationship[] = [
+      { id: 'rel-1', fromId: 'todo-1', toId: 'todo-2', type: 'depends_on' },
+      { id: 'rel-2', fromId: 'todo-3', toId: 'todo-1', type: 'blocks' },
+    ]
+    const tasks: TaskBoardTask[] = buildTasksWithOrbit()
+
+    const segments = buildConnectionSegments(tasks, relationships, {
+      focusTaskId: 'todo-2',
+    })
+
+    const highlighted = segments.find((segment) => segment.id === 'rel-1')
+    const dimmed = segments.find((segment) => segment.id === 'rel-2')
+    expect(highlighted?.emphasis).toBe('highlighted')
+    expect(dimmed?.emphasis).toBe('dimmed')
+  })
+})
+
+const buildTasksWithOrbit = (): TaskBoardTask[] => [
+  ...sampleTasks,
+  {
+    id: 'todo-3',
+    title: 'Orbit',
+    description: 'Tertiary',
+    status: 'completed',
+    priority: 2,
+    color: '#10b981',
+    position: { x: -240, y: 180 },
+  },
+]

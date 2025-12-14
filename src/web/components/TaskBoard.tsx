@@ -4,11 +4,12 @@ import {
   useCallback,
   useId,
   useMemo,
+  useState,
 } from 'react'
 
 import type { CanvasPosition } from '@core/domain/Todo'
 import type { RelationshipType } from '@core/domain/Relationship'
-import { buildConnectionSegments } from './TaskBoard.connections'
+import { buildConnectionSegments, type ConnectionSegment } from './TaskBoard.connections'
 import { useViewportController, type ViewportController, type ViewportState } from './TaskBoard.viewport'
 
 import { TaskCard } from './TaskCard'
@@ -35,7 +36,9 @@ export type TaskBoardRelationship = Readonly<{
 export type TaskBoardProps = Readonly<{
   tasks: readonly TaskBoardTask[]
   selectedId?: string
+  hoverId?: string
   onSelect?: (taskId: string) => void
+  onHover?: (taskId: string | undefined) => void
   relationships?: readonly TaskBoardRelationship[]
   initialViewport?: Partial<ViewportState>
   onViewportChange?: (viewport: ViewportState) => void
@@ -45,7 +48,9 @@ export type TaskBoardProps = Readonly<{
 export const TaskBoard = ({
   tasks,
   selectedId,
+  hoverId,
   onSelect,
+  onHover,
   relationships = [],
   initialViewport,
   onViewportChange,
@@ -53,6 +58,18 @@ export const TaskBoard = ({
 }: TaskBoardProps): JSX.Element => {
   const controller = useViewportController(initialViewport, onViewportChange)
   const boardClasses = useBoardClasses(className)
+  const [internalHover, setInternalHover] = useState<string | undefined>()
+  const handleHover = useCallback(
+    (taskId: string | undefined) => {
+      if (hoverId === undefined) {
+        setInternalHover(taskId)
+      }
+      onHover?.(taskId)
+    },
+    [hoverId, onHover],
+  )
+
+  const focusId = hoverId ?? internalHover ?? selectedId
 
   return (
     <TaskBoardView
@@ -60,7 +77,9 @@ export const TaskBoard = ({
       controller={controller}
       tasks={tasks}
       selectedId={selectedId}
+      hoverId={focusId}
       onSelect={onSelect}
+      onHover={handleHover}
       relationships={relationships}
     />
   )
@@ -83,14 +102,18 @@ const TaskBoardView = ({
   controller,
   tasks,
   selectedId,
+  hoverId,
   onSelect,
+  onHover,
   relationships,
 }: {
   className: string
   controller: ViewportController
   tasks: readonly TaskBoardTask[]
   selectedId?: string
+  hoverId?: string
   onSelect?: (taskId: string) => void
+  onHover?: (taskId: string | undefined) => void
   relationships: readonly TaskBoardRelationship[]
 }): JSX.Element => (
   <section className={className} aria-label="Spatial task board">
@@ -101,8 +124,12 @@ const TaskBoardView = ({
       onReset={controller.reset}
     />
     <BoardSurface controller={controller}>
-      <BoardConnections tasks={tasks} relationships={relationships} />
-      <BoardNodes tasks={tasks} selectedId={selectedId} onSelect={onSelect} />
+      <BoardConnections
+        tasks={tasks}
+        relationships={relationships}
+        focusId={hoverId ?? selectedId}
+      />
+      <BoardNodes tasks={tasks} selectedId={selectedId} onSelect={onSelect} onHover={onHover} />
     </BoardSurface>
   </section>
 )
@@ -209,15 +236,17 @@ type BoardNodesProps = Readonly<{
   tasks: readonly TaskBoardTask[]
   selectedId?: string
   onSelect?: (taskId: string) => void
+  onHover?: (taskId: string | undefined) => void
 }>
 
 type BoardNodeButtonProps = Readonly<{
   task: TaskBoardTask
   isSelected: boolean
   onSelect?: (taskId: string) => void
+  onHover?: (taskId: string | undefined) => void
 }>
 
-const BoardNodes = ({ tasks, selectedId, onSelect }: BoardNodesProps): JSX.Element => (
+const BoardNodes = ({ tasks, selectedId, onSelect, onHover }: BoardNodesProps): JSX.Element => (
   <div className="pointer-events-none relative h-0 w-0 -translate-x-1/2 -translate-y-1/2">
     {tasks.map((task) => (
       <BoardNodeButton
@@ -225,14 +254,18 @@ const BoardNodes = ({ tasks, selectedId, onSelect }: BoardNodesProps): JSX.Eleme
         task={task}
         isSelected={task.id === selectedId}
         onSelect={onSelect}
+        onHover={onHover}
       />
     ))}
   </div>
 )
 
-const BoardConnections = ({ tasks, relationships }: BoardConnectionsProps): JSX.Element | null => {
+const BoardConnections = ({ tasks, relationships, focusId }: BoardConnectionsProps): JSX.Element | null => {
   const markerId = useId()
-  const segments = useMemo(() => buildConnectionSegments(tasks, relationships ?? []), [tasks, relationships])
+  const segments = useMemo(
+    () => buildConnectionSegments(tasks, relationships ?? [], { focusTaskId: focusId }),
+    [tasks, relationships, focusId],
+  )
 
   if (segments.length === 0) {
     return null
@@ -265,6 +298,7 @@ const BoardConnections = ({ tasks, relationships }: BoardConnectionsProps): JSX.
 type BoardConnectionsProps = Readonly<{
   tasks: readonly TaskBoardTask[]
   relationships?: readonly TaskBoardRelationship[]
+  focusId?: string
 }>
 
 const ConnectionMarker = ({ id }: { id: string }): JSX.Element => (
@@ -288,19 +322,19 @@ const BoardConnectionPath = ({
   segment,
   markerId,
 }: {
-  segment: ReturnType<typeof buildConnectionSegments>[number]
+  segment: ConnectionSegment
   markerId: string
 }): JSX.Element => (
   <path
     d={segment.path}
     stroke={segment.stroke}
-    strokeWidth={4}
+    strokeWidth={segment.emphasis === 'highlighted' ? 5 : 3.5}
     strokeLinecap="round"
     strokeLinejoin="round"
     fill="none"
     data-relationship-id={segment.id}
     markerEnd={`url(#${markerId})`}
-    className="drop-shadow-sm"
+    className={segment.emphasis === 'dimmed' ? 'opacity-40 drop-shadow-sm' : 'drop-shadow-sm'}
     strokeDasharray={segment.dasharray}
   />
 )
@@ -309,6 +343,7 @@ const BoardNodeButton = ({
   task,
   isSelected,
   onSelect,
+  onHover,
 }: BoardNodeButtonProps): JSX.Element => {
   const nodeStyle = useMemo(
     () => ({
@@ -323,6 +358,10 @@ const BoardNodeButton = ({
       className="task-node pointer-events-auto absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 border-none bg-transparent p-0"
       style={nodeStyle}
       onClick={() => onSelect?.(task.id)}
+      onFocus={() => onHover?.(task.id)}
+      onBlur={() => onHover?.(undefined)}
+      onMouseEnter={() => onHover?.(task.id)}
+      onMouseLeave={() => onHover?.(undefined)}
       data-task-id={task.id}
       aria-pressed={isSelected}
     >

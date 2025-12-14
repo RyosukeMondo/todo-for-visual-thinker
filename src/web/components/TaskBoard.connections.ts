@@ -21,16 +21,24 @@ const RELATIONSHIP_VISUALS: Record<RelationshipType, { stroke: string; dasharray
   related_to: { stroke: '#a855f7', dasharray: '8 8' },
 }
 
+export type ConnectionEmphasis = 'normal' | 'highlighted' | 'dimmed'
+
 export type ConnectionSegment = Readonly<{
   id: string
   path: string
   stroke: string
   dasharray?: string
+  emphasis: ConnectionEmphasis
+}>
+
+export type BuildConnectionSegmentsOptions = Readonly<{
+  focusTaskId?: string
 }>
 
 export const buildConnectionSegments = (
   tasks: readonly TaskBoardTask[],
   relationships: readonly TaskBoardRelationship[],
+  options: BuildConnectionSegmentsOptions = {},
 ): ConnectionSegment[] => {
   if (tasks.length === 0 || relationships.length === 0) {
     return []
@@ -38,6 +46,8 @@ export const buildConnectionSegments = (
 
   const positionsById = new Map<string, CanvasPosition>()
   tasks.forEach((task) => positionsById.set(task.id, task.position))
+
+  const focusId = normalizeFocusId(options.focusTaskId)
 
   return relationships.flatMap((relationship) => {
     const from = positionsById.get(relationship.fromId)
@@ -53,13 +63,35 @@ export const buildConnectionSegments = (
 
     const palette = RELATIONSHIP_VISUALS[relationship.type]
     const stroke = sanitizeColor(relationship.color) ?? palette?.stroke ?? DEFAULT_CONNECTION_COLOR
+    const emphasis = resolveEmphasis(focusId, relationship)
     return [{
       id: relationship.id,
       path,
       stroke,
       dasharray: palette?.dasharray,
+      emphasis,
     } satisfies ConnectionSegment]
   })
+}
+
+const normalizeFocusId = (value?: string): string | undefined => {
+  const trimmed = value?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : undefined
+}
+
+const resolveEmphasis = (
+  focusId: string | undefined,
+  relationship: TaskBoardRelationship,
+): ConnectionEmphasis => {
+  if (!focusId) {
+    return 'normal'
+  }
+  const normalizedFocus = focusId.trim()
+  const normalizedFrom = relationship.fromId.trim()
+  const normalizedTo = relationship.toId.trim()
+  const isConnected =
+    normalizedFrom === normalizedFocus || normalizedTo === normalizedFocus
+  return isConnected ? 'highlighted' : 'dimmed'
 }
 
 const buildConnectionPath = (
