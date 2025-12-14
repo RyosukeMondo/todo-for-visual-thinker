@@ -1,5 +1,6 @@
 import type { Todo } from '@core/domain/Todo'
 import type { Relationship } from '@core/domain/Relationship'
+import type { Category } from '@core/domain/Category'
 import { DomainError } from '@core/errors'
 
 export type SerializedTodo = Omit<
@@ -39,6 +40,23 @@ export const serializeRelationship = (
   relationship: Relationship,
 ): SerializedRelationship => {
   const props = relationship.toJSON()
+  return {
+    ...props,
+    createdAt: props.createdAt.toISOString(),
+    updatedAt: props.updatedAt.toISOString(),
+  }
+}
+
+export type SerializedCategory = Omit<
+  ReturnType<Category['toJSON']>,
+  'createdAt' | 'updatedAt'
+> & {
+  createdAt: string
+  updatedAt: string
+}
+
+export const serializeCategory = (category: Category): SerializedCategory => {
+  const props = category.toJSON()
   return {
     ...props,
     createdAt: props.createdAt.toISOString(),

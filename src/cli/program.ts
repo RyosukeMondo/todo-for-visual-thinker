@@ -7,6 +7,8 @@ import { registerAddTodoCommand } from './commands/addTodo'
 import { registerListTodosCommand } from './commands/listTodos'
 import { registerDeleteTodosCommand } from './commands/deleteTodos'
 import { registerUpdateTodoCommand } from './commands/updateTodo'
+import { registerAddCategoryCommand } from './commands/addCategory'
+import { registerListCategoriesCommand } from './commands/listCategories'
 import { registerAddRelationshipCommand } from './commands/addRelationship'
 import { registerListRelationshipsCommand } from './commands/listRelationships'
 import { registerDeleteRelationshipsCommand } from './commands/deleteRelationships'
@@ -27,6 +29,16 @@ export const buildCliProgram = (
     .version('0.1.0')
 
   registerAddTodoCommand(program, { createTodo: runtime.createTodo }, io)
+  registerAddCategoryCommand(
+    program,
+    { createCategory: runtime.createCategory },
+    io,
+  )
+  registerListCategoriesCommand(
+    program,
+    { listCategories: runtime.listCategories },
+    io,
+  )
   registerInitDbCommand(program, io)
   registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
   registerDeleteTodosCommand(program, { deleteTodo: runtime.deleteTodo }, io)

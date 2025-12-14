@@ -2,16 +2,23 @@ import Database, { type Database as SQLiteInstance } from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { SQLiteTodoRepository } from '@core/adapters/SQLiteTodoRepository'
 import { SQLiteRelationshipRepository } from '@core/adapters/SQLiteRelationshipRepository'
-import type { TodoRepository, RelationshipRepository } from '@core/ports'
+import { SQLiteCategoryRepository } from '@core/adapters/SQLiteCategoryRepository'
+import type {
+  TodoRepository,
+  RelationshipRepository,
+  CategoryRepository,
+} from '@core/ports'
 import {
   CreateRelationship,
   CreateTodo,
+  CreateCategory,
   DeleteRelationship,
   DeleteTodo,
   GetBoardStatus,
   GetBoardSnapshot,
   ListRelationships,
   ListTodos,
+  ListCategories,
   UpdateRelationship,
   UpdateTodo,
 } from '@core/usecases'
@@ -28,8 +35,11 @@ export type RuntimeOverrides = Readonly<{
 export type CliRuntime = Readonly<{
   repository: TodoRepository
   relationships: RelationshipRepository
+  categories: CategoryRepository
   createTodo: CreateTodo
+  createCategory: CreateCategory
   listTodos: ListTodos
+  listCategories: ListCategories
   getBoardStatus: GetBoardStatus
   getBoardSnapshot: GetBoardSnapshot
   listRelationships: ListRelationships
@@ -44,38 +54,74 @@ export type CliRuntime = Readonly<{
 export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const dbPath = normalizeDbPath(overrides.dbPath ?? DEFAULT_DB_PATH)
   ensureDbDirectory(dbPath)
-  const openDatabase = overrides.databaseFactory ?? ((path: string) => new Database(path))
+  const openDatabase =
+    overrides.databaseFactory ?? ((path: string) => new Database(path))
   const db = openDatabase(dbPath)
   const repository = new SQLiteTodoRepository(db)
   const relationships = new SQLiteRelationshipRepository(db)
-  const createTodo = new CreateTodo({
-    repository,
-    idGenerator: overrides.idGenerator ?? randomUUID,
-    clock: overrides.clock,
-  })
-  const listTodos = new ListTodos({ repository })
-  const listRelationships = new ListRelationships({ repository: relationships })
-  const getBoardStatus = new GetBoardStatus({ repository })
-  const getBoardSnapshot = new GetBoardSnapshot({ repository, relationships })
-  const deleteTodo = new DeleteTodo({
+  const categories = new SQLiteCategoryRepository(db)
+  const idGenerator = overrides.idGenerator ?? randomUUID
+  const useCases = buildUseCases({
     repository,
     relationships,
-  })
-  const deleteRelationship = new DeleteRelationship({ repository: relationships })
-  const updateRelationship = new UpdateRelationship({ repository: relationships })
-  const updateTodo = new UpdateTodo({ repository, clock: overrides.clock })
-  const createRelationship = new CreateRelationship({
-    relationships,
-    todos: repository,
-    idGenerator: overrides.idGenerator ?? randomUUID,
+    categories,
+    idGenerator,
     clock: overrides.clock,
   })
 
   return {
     repository,
     relationships,
+    categories,
+    ...useCases,
+    shutdown: () => db.close(),
+  }
+}
+
+type UseCaseBuilderInput = Readonly<{
+  repository: TodoRepository
+  relationships: RelationshipRepository
+  categories: CategoryRepository
+  idGenerator: () => string
+  clock?: () => Date
+}>
+
+const buildUseCases = ({
+  repository,
+  relationships,
+  categories,
+  idGenerator,
+  clock,
+}: UseCaseBuilderInput) => {
+  const createTodo = new CreateTodo({ repository, idGenerator, clock })
+  const createCategory = new CreateCategory({
+    repository: categories,
+    idGenerator,
+    clock,
+  })
+  const listTodos = new ListTodos({ repository })
+  const listCategories = new ListCategories({ repository: categories })
+  const listRelationships = new ListRelationships({ repository: relationships })
+  const getBoardStatus = new GetBoardStatus({ repository })
+  const getBoardSnapshot = new GetBoardSnapshot({ repository, relationships })
+  const deleteTodo = new DeleteTodo({ repository, relationships })
+  const deleteRelationship = new DeleteRelationship({
+    repository: relationships,
+  })
+  const updateRelationship = new UpdateRelationship({ repository: relationships })
+  const updateTodo = new UpdateTodo({ repository, clock })
+  const createRelationship = new CreateRelationship({
+    relationships,
+    todos: repository,
+    idGenerator,
+    clock,
+  })
+
+  return {
     createTodo,
+    createCategory,
     listTodos,
+    listCategories,
     getBoardStatus,
     getBoardSnapshot,
     listRelationships,
@@ -84,7 +130,6 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
     updateRelationship,
     updateTodo,
     createRelationship,
-    shutdown: () => db.close(),
   }
 }
 
