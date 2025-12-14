@@ -54,6 +54,40 @@ const createTempDbPath = () => {
   return { path, cleanup }
 }
 
+type InitDbPayload = {
+  success: boolean
+  data: {
+    dbPath: string
+    seededDemoTasks: number
+    seededDemoRelationships: number
+    overwroteExisting: boolean
+  }
+}
+
+const expectSeededResponse = (payload: InitDbPayload, dbPath: string) => {
+  expect(payload.success).toBe(true)
+  expect(payload.data.dbPath).toBe(dbPath)
+  expect(payload.data.seededDemoTasks).toBe(3)
+  expect(payload.data.seededDemoRelationships).toBe(3)
+  expect(payload.data.overwroteExisting).toBe(false)
+}
+
+const expectDemoCounts = (dbPath: string) => {
+  const db = new Database(dbPath)
+  try {
+    const todos = db
+      .prepare('SELECT COUNT(*) AS count FROM todos')
+      .get() as { count: number }
+    expect(todos.count).toBe(3)
+    const relationships = db
+      .prepare('SELECT COUNT(*) AS count FROM relationships')
+      .get() as { count: number }
+    expect(relationships.count).toBe(3)
+  } finally {
+    db.close()
+  }
+}
+
 describe('init-db command', () => {
   const captured = createMemoryIO()
 
@@ -80,18 +114,11 @@ describe('init-db command', () => {
       '--seed-demo',
     ])
 
-    const payload = JSON.parse(captured.readStdout())
-    expect(payload.success).toBe(true)
-    expect(payload.data.dbPath).toBe(path)
-    expect(payload.data.seededDemoTasks).toBe(3)
-    expect(payload.data.overwroteExisting).toBe(false)
+    const payload = JSON.parse(captured.readStdout()) as InitDbPayload
+    expectSeededResponse(payload, path)
     expect(captured.readStderr()).toBe('')
     expect(process.exitCode).toBeUndefined()
-
-    const db = new Database(path)
-    const count = db.prepare('SELECT COUNT(*) AS count FROM todos').get() as { count: number }
-    expect(count.count).toBe(3)
-    db.close()
+    expectDemoCounts(path)
 
     cleanup()
   })

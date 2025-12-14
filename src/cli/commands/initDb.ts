@@ -5,6 +5,7 @@ import type { Command } from 'commander'
 
 import { SQLiteTodoRepository } from '@core/adapters/SQLiteTodoRepository'
 import { SQLiteRelationshipRepository } from '@core/adapters/SQLiteRelationshipRepository'
+import { Relationship, type RelationshipType } from '@core/domain/Relationship'
 import { Todo } from '@core/domain/Todo'
 import { ValidationError } from '@core/errors'
 
@@ -53,14 +54,15 @@ const handleInitDb = async (
 ): Promise<void> => {
   try {
     const context = prepareContext(options, deps)
-    const seededCount = await initializeSchema(context, Boolean(options.seedDemo))
+    const seeded = await initializeSchema(context, Boolean(options.seedDemo))
 
     writeJson(io.stdout, {
       success: true,
       data: {
         dbPath: context.dbPath,
         overwroteExisting: context.overwroteExisting,
-        seededDemoTasks: seededCount,
+        seededDemoTasks: seeded.seededTodos,
+        seededDemoRelationships: seeded.seededRelationships,
       },
     })
   } catch (error) {
@@ -96,18 +98,29 @@ const prepareContext = (
   return { dbPath, overwroteExisting, database, idGenerator, clock }
 }
 
+type SeedStats = Readonly<{
+  seededTodos: number
+  seededRelationships: number
+}>
+
 const initializeSchema = async (
   context: PreparedInitContext,
   shouldSeedDemo: boolean,
-): Promise<number> => {
+): Promise<SeedStats> => {
   try {
     const todoRepository = new SQLiteTodoRepository(context.database)
-    new SQLiteRelationshipRepository(context.database)
+    const relationshipRepository = new SQLiteRelationshipRepository(
+      context.database,
+    )
 
     if (!shouldSeedDemo) {
-      return 0
+      return { seededTodos: 0, seededRelationships: 0 }
     }
-    return await seedDemoTodos(todoRepository, context.clock, context.idGenerator)
+    return await seedDemoData(
+      { todos: todoRepository, relationships: relationshipRepository },
+      context.clock,
+      context.idGenerator,
+    )
   } finally {
     context.database.close()
   }
@@ -130,12 +143,57 @@ const resetDatabaseIfNeeded = (dbPath: string, force: boolean): boolean => {
   return true
 }
 
-const seedDemoTodos = async (
-  repository: SQLiteTodoRepository,
+type DemoSeed = Readonly<{
+  slug: string
+  title: string
+  description: string
+  status: Todo['status']
+  priority: Todo['priority']
+  category: string
+  color: string
+  icon: string
+  position: Todo['position']
+}>
+
+type DemoRelationshipSeed = Readonly<{
+  from: string
+  to: string
+  type: RelationshipType
+  description?: string
+}>
+
+const seedDemoData = async (
+  repositories: {
+    todos: Pick<SQLiteTodoRepository, 'save'>
+    relationships: Pick<SQLiteRelationshipRepository, 'save'>
+  },
   clock: () => Date,
   idGenerator: () => string,
-): Promise<number> => {
-  const seeds = buildDemoSeeds()
+): Promise<SeedStats> => {
+  const todoIds = await insertDemoTodos(
+    repositories.todos,
+    clock,
+    idGenerator,
+  )
+  const relationshipCount = await insertDemoRelationships(
+    repositories.relationships,
+    todoIds,
+    clock,
+    idGenerator,
+  )
+  return {
+    seededTodos: todoIds.size,
+    seededRelationships: relationshipCount,
+  }
+}
+
+const insertDemoTodos = async (
+  repository: Pick<SQLiteTodoRepository, 'save'>,
+  clock: () => Date,
+  idGenerator: () => string,
+): Promise<Map<string, string>> => {
+  const seeds = buildDemoTodoSeeds()
+  const ids = new Map<string, string>()
   for (const seed of seeds) {
     const todo = Todo.create({
       id: idGenerator(),
@@ -150,24 +208,45 @@ const seedDemoTodos = async (
       createdAt: clock(),
     })
     await repository.save(todo)
+    ids.set(seed.slug, todo.id)
   }
-  return seeds.length
+  return ids
 }
 
-type DemoSeed = Readonly<{
-  title: string
-  description: string
-  status: Todo['status']
-  priority: Todo['priority']
-  category: string
-  color: string
-  icon: string
-  position: Todo['position']
-}>
+const insertDemoRelationships = async (
+  repository: Pick<SQLiteRelationshipRepository, 'save'>,
+  idsBySlug: Map<string, string>,
+  clock: () => Date,
+  idGenerator: () => string,
+): Promise<number> => {
+  const seeds = buildDemoRelationshipSeeds()
+  let created = 0
+  for (const seed of seeds) {
+    const fromId = idsBySlug.get(seed.from)
+    const toId = idsBySlug.get(seed.to)
+    if (!fromId || !toId) {
+      throw new ValidationError('Demo relationship references unknown task', {
+        seed,
+      })
+    }
+    const relationship = Relationship.create({
+      id: idGenerator(),
+      fromId,
+      toId,
+      type: seed.type,
+      description: seed.description,
+      createdAt: clock(),
+    })
+    await repository.save(relationship)
+    created += 1
+  }
+  return created
+}
 
-const buildDemoSeeds = (): DemoSeed[] => {
+const buildDemoTodoSeeds = (): DemoSeed[] => {
   return [
     {
+      slug: 'launch-map',
       title: 'Map the launch journey',
       description:
         'Sketch the key milestones and dependencies for the v1 product launch to anchor the spatial board.',
@@ -179,6 +258,7 @@ const buildDemoSeeds = (): DemoSeed[] => {
       position: { x: 320, y: -140 },
     },
     {
+      slug: 'visual-palette',
       title: 'Design visual palette',
       description:
         'Validate the color semantics and iconography that reduce cognitive load for visual thinkers.',
@@ -190,6 +270,7 @@ const buildDemoSeeds = (): DemoSeed[] => {
       position: { x: -120, y: 40 },
     },
     {
+      slug: 'canvas-prototype',
       title: 'Prototype infinite canvas',
       description:
         'Create an interactive slice of the canvas experience with zoom, pan, and clustering.',
@@ -202,3 +283,24 @@ const buildDemoSeeds = (): DemoSeed[] => {
     },
   ]
 }
+
+const buildDemoRelationshipSeeds = (): DemoRelationshipSeed[] => [
+  {
+    from: 'launch-map',
+    to: 'visual-palette',
+    type: 'depends_on',
+    description: 'Launch planning leans on a grounded design language.',
+  },
+  {
+    from: 'canvas-prototype',
+    to: 'launch-map',
+    type: 'blocks',
+    description: 'We cannot finalize launch orchestration without a canvas prototype.',
+  },
+  {
+    from: 'canvas-prototype',
+    to: 'visual-palette',
+    type: 'related_to',
+    description: 'Prototype visuals should stay in sync with the color framework.',
+  },
+]
