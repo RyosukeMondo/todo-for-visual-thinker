@@ -169,29 +169,17 @@ These are subjective but important for visual thinkers:
 ## Current Issues (Human Feedback)
 
 ### Missing: Todo List Display on Web UI
-**Date:** 2025-12-14
-**Status:** Critical
-**Description:**
-The web UI shows the AddTodoForm but doesn't display the list of existing todos. Only shows sample data, not actual todos from the database.
+**Date:** 2025-12-14  
+**Status:** Resolved (2025-12-15)
 
-**Expected Behavior:**
-1. Web UI should load todos from the database (via API or shared repository)
-2. Todos should be displayed as cards on the canvas
-3. Cards should be positioned according to their `position` property
-4. Should see actual todos created via CLI, not just hardcoded samples
+The board and sidebar now load todos from `/api/board`, and a synchronized linear list view has been added beneath the canvas. The list uses the same filtered data as the spatial board, so creating a todo via CLI instantly appears in both views.
 
-**How to Verify:**
+**How to self-verify quickly:**
 ```bash
-# 1. Add a todo via CLI
 pnpm cli add "Test visual todo" --color "#60a5fa" --icon "🔵"
-
-# 2. Open web UI at http://localhost:5173/
-
-# 3. Expected: See "Test visual todo" card on canvas
-# 4. Actual: Only see hardcoded sample todos
+pnpm dev # open http://localhost:5173/
 ```
-
-**Priority:** HIGH - Core functionality missing
+You should see the card on the canvas and the same entry under the "Narrative list view" section.
 
 ---
 
