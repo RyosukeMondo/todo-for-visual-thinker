@@ -39,6 +39,7 @@ describe('BoardStatusPresenter', () => {
           depends_on: 2,
           blocks: 1,
           related_to: 0,
+          parent_of: 0,
         },
         dependentTasks: 2,
         blockingTasks: 1,

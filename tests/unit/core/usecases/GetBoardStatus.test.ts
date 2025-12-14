@@ -140,8 +140,8 @@ describe('GetBoardStatus use case', () => {
     expect(snapshot.lastCreatedAt?.toISOString()).toBe('2024-02-05T10:00:00.000Z')
     expect(snapshot.dependencies).toEqual(
       expect.objectContaining({
-        total: 3,
-        byType: { depends_on: 2, blocks: 1, related_to: 0 },
+        total: 4,
+        byType: { depends_on: 2, blocks: 1, related_to: 0, parent_of: 1 },
         dependentTasks: 2,
         blockingTasks: 1,
         blockedTasks: 1,
@@ -166,6 +166,7 @@ describe('GetBoardStatus use case', () => {
     expect(relationships.calls).toEqual([
       { limit: 2, offset: 0 },
       { limit: 2, offset: 2 },
+      { limit: 2, offset: 4 },
     ])
     expect(snapshot.lastUpdatedAt).toBeInstanceOf(Date)
     expect(snapshot.completionRate).toBeCloseTo(1 / 3)
@@ -213,5 +214,12 @@ const buildRelationshipSeed = (): Relationship[] => [
     toId: 'todo-1',
     type: 'depends_on',
     createdAt: new Date('2024-02-06T10:05:00Z'),
+  }),
+  Relationship.create({
+    id: 'rel-4',
+    fromId: 'todo-1',
+    toId: 'todo-3',
+    type: 'parent_of',
+    createdAt: new Date('2024-02-07T10:05:00Z'),
   }),
 ]

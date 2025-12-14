@@ -14,6 +14,7 @@ const RELATIONSHIP_TYPES: readonly RelationshipType[] = [
   'depends_on',
   'blocks',
   'related_to',
+  'parent_of',
 ]
 const DEFAULT_BATCH_SIZE = 250
 

@@ -13,10 +13,14 @@ const CURVE_LATERAL_FACTOR = 0.2
 const CURVE_PRIMARY_MAX = 180
 const CURVE_LATERAL_MAX = 90
 
-const RELATIONSHIP_VISUALS: Record<RelationshipType, { stroke: string; label: string; dasharray?: string }> = {
+const RELATIONSHIP_VISUALS: Record<
+  RelationshipType,
+  { stroke: string; label: string; dasharray?: string }
+> = {
   depends_on: { stroke: '#0284c7', label: 'Depends on' },
   blocks: { stroke: '#f97316', label: 'Blocks' },
   related_to: { stroke: '#a855f7', dasharray: '8 8', label: 'Related' },
+  parent_of: { stroke: '#14b8a6', label: 'Parent' },
 }
 
 export type ConnectionEmphasis = 'normal' | 'highlighted' | 'dimmed'

@@ -34,6 +34,7 @@ const payload: BoardStatusDTO = {
       depends_on: 1,
       blocks: 0,
       related_to: 0,
+      parent_of: 0,
     },
     dependentTasks: 1,
     blockingTasks: 0,

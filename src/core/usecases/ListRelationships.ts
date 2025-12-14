@@ -14,6 +14,7 @@ const ALLOWED_TYPES: readonly RelationshipType[] = [
   'depends_on',
   'blocks',
   'related_to',
+  'parent_of',
 ] as const
 
 export type ListRelationshipsInput = RelationshipQuery

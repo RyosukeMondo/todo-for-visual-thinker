@@ -24,12 +24,18 @@ const RELATIONSHIP_META: Record<
     description: 'Contextual links for creative jumps',
     accent: '#a855f7',
   },
+  parent_of: {
+    label: 'Parent of',
+    description: 'Map hierarchies for layered workstreams',
+    accent: '#14b8a6',
+  },
 }
 
 const TYPE_SEQUENCE: RelationshipType[] = [
   'depends_on',
   'blocks',
   'related_to',
+  'parent_of',
 ]
 
 export type DependencyHealthPanelProps = Readonly<{
