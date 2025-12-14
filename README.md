@@ -123,12 +123,14 @@ This project uses AI-driven autonomous development powered by **[steer-driven-ru
 ### Installation
 
 ```bash
-# Install steer-driven-runner
-pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+# ⚡ Ultra-fast: Install globally with uv (recommended)
+uv tool install git+https://github.com/RyosukeMondo/steer-driven-runner.git
 
-# Or use uv
-uv pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+# Or install with pip
+pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
 ```
+
+> **Note**: `uv tool install` installs CLI commands globally, making them available system-wide without activating virtual environments.
 
 ### Running Autonomous Development
 

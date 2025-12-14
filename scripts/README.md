@@ -15,12 +15,18 @@ The following scripts have been rewritten in Python and moved to the independent
 ## Installation
 
 ```bash
-# Install from GitHub
-pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+# ⚡ Ultra-fast: Install globally with uv (recommended)
+uv tool install git+https://github.com/RyosukeMondo/steer-driven-runner.git
 
-# Or use uv
-uv pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
+# Or install with pip
+pip install git+https://github.com/RyosukeMondo/steer-driven-runner.git
 ```
+
+> **Why `uv tool install`?**
+> - ⚡ Blazing fast installation
+> - 🌍 Installs CLI commands globally (system-wide access)
+> - 🔧 No need to activate virtual environments
+> - 🚀 Perfect for CLI tools like steer-run, steer-monitor, steer-feedback
 
 ## Usage
 
