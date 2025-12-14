@@ -5,6 +5,7 @@ import type { ListTodos } from '@core/usecases'
 import type { CliIO } from '../io'
 import { writeJson } from '../io'
 import { serializeError, serializeTodo } from '../serializers'
+import { formatTodoList } from '../output/formatTodoList'
 import { mapTodoFiltersToQuery } from './todoQueryOptions'
 import type { TodoFilterOptions } from './todoQueryOptions'
 
@@ -12,7 +13,9 @@ export type ListTodosDependencies = Readonly<{
   listTodos: Pick<ListTodos, 'execute'>
 }>
 
-export type ListTodosOptions = TodoFilterOptions
+export type ListTodosOptions = TodoFilterOptions & {
+  pretty?: boolean
+}
 
 export const registerListTodosCommand = (
   program: Command,
@@ -35,6 +38,7 @@ export const registerListTodosCommand = (
     .option('--x-max <number>', 'Viewport X max bound')
     .option('--y-min <number>', 'Viewport Y min bound')
     .option('--y-max <number>', 'Viewport Y max bound')
+    .option('--pretty', 'Render human-readable summary instead of JSON', false)
     .action(async (options: ListTodosOptions) => {
       await handleListAction(options, deps, io)
     })
@@ -48,10 +52,15 @@ const handleListAction = async (
   try {
     const query = mapTodoFiltersToQuery(options)
     const todos = await deps.listTodos.execute(query)
+    const serialized = todos.map(serializeTodo)
+    if (options.pretty) {
+      io.stdout.write(formatTodoList(serialized))
+      return
+    }
     writeJson(io.stdout, {
       success: true,
       data: {
-        todos: todos.map(serializeTodo),
+        todos: serialized,
         filters: query,
       },
     })
