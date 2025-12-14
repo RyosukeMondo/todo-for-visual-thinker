@@ -31,11 +31,11 @@ export class DeleteTodo {
       if (!singleId) {
         throw new ValidationError('Unexpected empty todo identifier set')
       }
-    await this.deleteSingle(singleId)
-    return
-  }
+      await this.deleteSingle(singleId)
+      return
+    }
 
-  await this.deleteMany(identifiers)
+    await this.deleteMany(identifiers)
   }
 
   private async deleteSingle(id: string): Promise<void> {
