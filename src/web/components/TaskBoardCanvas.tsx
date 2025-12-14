@@ -1,12 +1,15 @@
 import {
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useCallback,
   useId,
   useMemo,
+  useRef,
 } from 'react'
 
+import type { CanvasPosition } from '@core/domain/Todo'
 import type { TaskBoardRelationship, TaskBoardTask } from './TaskBoard'
 import { TaskCard } from './TaskCard'
 import { TaskBoardMinimap } from './TaskBoardMinimap'
@@ -39,6 +42,8 @@ export type TaskBoardLayersProps = Readonly<{
   relationships: readonly TaskBoardRelationship[]
   viewport: TaskBoardViewport
   isFocusMode: boolean
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  isMovePending?: boolean
 }>
 
 export const TaskBoardLayers = ({
@@ -51,6 +56,8 @@ export const TaskBoardLayers = ({
   relationships,
   viewport,
   isFocusMode,
+  onMoveTask,
+  isMovePending,
 }: TaskBoardLayersProps): JSX.Element => (
   <BoardSurface controller={controller} tasks={tasks} selectedId={selectedId} onSelect={onSelect}>
     <BoardConnections tasks={tasks} relationships={relationships} focusId={hoverId ?? selectedId} />
@@ -60,6 +67,9 @@ export const TaskBoardLayers = ({
       onSelect={onSelect}
       onHover={onHover}
       dimUnselected={isFocusMode}
+      onMoveTask={onMoveTask}
+      isMovePending={isMovePending}
+      viewportScale={controller.viewport.scale}
     />
     <TaskBoardMinimap
       tasks={tasks.map((task) => ({
@@ -121,6 +131,9 @@ type BoardNodesProps = Readonly<{
   onSelect?: (taskId: string) => void
   onHover?: (taskId: string | undefined) => void
   dimUnselected?: boolean
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  isMovePending?: boolean
+  viewportScale?: number
 }>
 
 type BoardNodeButtonProps = Readonly<{
@@ -129,6 +142,9 @@ type BoardNodeButtonProps = Readonly<{
   isDimmed: boolean
   onSelect?: (taskId: string) => void
   onHover?: (taskId: string | undefined) => void
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  isMovePending?: boolean
+  viewportScale?: number
 }>
 
 const BoardNodes = ({
@@ -137,6 +153,9 @@ const BoardNodes = ({
   onSelect,
   onHover,
   dimUnselected = false,
+  onMoveTask,
+  isMovePending,
+  viewportScale,
 }: BoardNodesProps): JSX.Element => {
   const shouldDim = dimUnselected && Boolean(selectedId)
   return (
@@ -149,6 +168,9 @@ const BoardNodes = ({
           isDimmed={shouldDim ? task.id !== selectedId : false}
           onSelect={onSelect}
           onHover={onHover}
+          onMoveTask={onMoveTask}
+          isMovePending={isMovePending}
+          viewportScale={viewportScale}
         />
       ))}
     </div>
@@ -161,12 +183,59 @@ const BoardNodeButton = ({
   isDimmed,
   onSelect,
   onHover,
+  onMoveTask,
+  isMovePending,
+  viewportScale = 1,
 }: BoardNodeButtonProps): JSX.Element => {
   const nodeStyle = useMemo(
     () => ({
       transform: `translate3d(${task.position.x}px, ${task.position.y}px, 0)` as const,
     }),
     [task.position.x, task.position.y],
+  )
+  const dragState = useRef<{
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+  } | null>(null)
+
+  const handleDragStart = useCallback(
+    (event: ReactDragEvent<HTMLButtonElement>) => {
+      if (!onSelect) return
+      onSelect(task.id)
+      event.dataTransfer.effectAllowed = 'move'
+      dragState.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: task.position.x,
+        originY: task.position.y,
+      }
+      // Provide dummy data for Firefox compatibility
+      event.dataTransfer.setData('text/plain', task.id)
+    },
+    [onSelect, task.id, task.position.x, task.position.y],
+  )
+
+  const handleDragEnd = useCallback(
+    (event: ReactDragEvent<HTMLButtonElement>) => {
+      if (!onMoveTask || !dragState.current) return
+      const { startX, startY, originX, originY } = dragState.current
+      dragState.current = null
+      if (event.clientX === 0 && event.clientY === 0) {
+        return
+      }
+      const deltaX = (event.clientX - startX) / viewportScale
+      const deltaY = (event.clientY - startY) / viewportScale
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
+        return
+      }
+      onMoveTask(task.id, {
+        x: originX + deltaX,
+        y: originY + deltaY,
+      })
+    },
+    [onMoveTask, task.id, viewportScale],
   )
 
   return (
@@ -181,6 +250,10 @@ const BoardNodeButton = ({
       onMouseLeave={() => onHover?.(undefined)}
       data-task-id={task.id}
       aria-pressed={isSelected}
+      aria-busy={isMovePending}
+      draggable={Boolean(onMoveTask)}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
       <TaskCard
         {...task}

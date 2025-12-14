@@ -50,3 +50,23 @@ export type ApiErrorResponse = Readonly<{
 }>
 
 export type CreateTodoResultDTO = CreateTodoResponseDTO | ApiErrorResponse
+
+export type UpdateTodoRequestDTO = Readonly<{
+  title?: string
+  description?: string | null
+  status?: TodoStatus
+  priority?: TodoPriority
+  category?: string | null
+  color?: string
+  icon?: string | null
+  position?: Partial<CanvasPosition>
+}>
+
+export type UpdateTodoResponseDTO = Readonly<{
+  success: true
+  data: Readonly<{
+    todo: TodoDTO
+  }>
+}>
+
+export type UpdateTodoResultDTO = UpdateTodoResponseDTO | ApiErrorResponse

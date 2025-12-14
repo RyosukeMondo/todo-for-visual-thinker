@@ -7,6 +7,7 @@ export type BoardDataViewModel = Readonly<{
   tasks: TaskBoardTask[]
   relationships: TaskBoardRelationship[]
   totals: BoardSnapshotDTO['totals']
+  viewport: BoardSnapshotDTO['viewport']
 }>
 
 export const transformSnapshot = (snapshot: BoardSnapshotDTO): BoardDataViewModel => {
@@ -34,6 +35,7 @@ export const transformSnapshot = (snapshot: BoardSnapshotDTO): BoardDataViewMode
     tasks,
     relationships,
     totals: snapshot.totals,
+    viewport: snapshot.viewport,
   }
 }
 

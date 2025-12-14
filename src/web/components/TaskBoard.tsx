@@ -36,6 +36,8 @@ export type TaskBoardProps = Readonly<{
   relationships?: readonly TaskBoardRelationship[]
   initialViewport?: Partial<ViewportState>
   onViewportChange?: (viewport: ViewportState) => void
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  isMovePending?: boolean
   className?: string
 }>
 
@@ -48,6 +50,8 @@ export const TaskBoard = ({
   relationships = [],
   initialViewport,
   onViewportChange,
+  onMoveTask,
+  isMovePending,
   className,
 }: TaskBoardProps): JSX.Element => {
   const controller = useViewportController(initialViewport, onViewportChange)
@@ -76,6 +80,8 @@ export const TaskBoard = ({
       viewport={viewport}
       isFocusMode={isFocusMode}
       onToggleFocusMode={toggleFocusMode}
+      onMoveTask={onMoveTask}
+      isMovePending={isMovePending}
     />
   )
 }
@@ -151,6 +157,8 @@ type TaskBoardViewProps = Readonly<{
   viewport: TaskBoardViewport
   isFocusMode: boolean
   onToggleFocusMode: () => void
+  onMoveTask?: (taskId: string, position: CanvasPosition) => void | Promise<void>
+  isMovePending?: boolean
 }>
 
 const TaskBoardView = ({
@@ -165,6 +173,8 @@ const TaskBoardView = ({
   viewport,
   isFocusMode,
   onToggleFocusMode,
+  onMoveTask,
+  isMovePending,
 }: TaskBoardViewProps): JSX.Element => (
   <section className={className} aria-label="Spatial task board">
     <TaskBoardHeader
@@ -186,6 +196,8 @@ const TaskBoardView = ({
       relationships={relationships}
       viewport={viewport}
       isFocusMode={isFocusMode}
+      onMoveTask={onMoveTask}
+      isMovePending={isMovePending}
     />
   </section>
 )

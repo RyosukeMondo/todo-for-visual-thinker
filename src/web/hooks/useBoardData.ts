@@ -8,10 +8,11 @@ import type {
 } from '../components/TaskBoard'
 import { transformSnapshot } from '../utils/boardData'
 
-type BoardData = Readonly<{
+export type BoardData = Readonly<{
   tasks: TaskBoardTask[]
   relationships: TaskBoardRelationship[]
   totals: BoardSnapshotDTO['totals']
+  viewport: BoardSnapshotDTO['viewport']
 }>
 
 export type UseBoardDataResult = Readonly<{

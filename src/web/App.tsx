@@ -7,16 +7,25 @@ import { AddTodoForm, TaskBoard, TaskMetricsPanel } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
 import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
-import { useBoardData } from './hooks/useBoardData'
+import { useBoardData, type BoardData } from './hooks/useBoardData'
 import { useCreateTodo } from './hooks/useCreateTodo'
+import { useUpdateTodoPosition } from './hooks/useUpdateTodoPosition'
 import type { AddTodoFormValues } from './components/AddTodoForm'
+import type { TaskBoardViewport } from './components/TaskBoardMinimap'
 
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
   const { data, isLoading, error, reload } = useBoardData()
-  const tasks = useMemo(() => data?.tasks ?? [], [data])
-  const relationships = useMemo(() => data?.relationships ?? [], [data])
+  const [board, setBoard] = useState<BoardData | undefined>(data)
+  useEffect(() => {
+    if (data) {
+      setBoard(data)
+    }
+  }, [data])
+  const tasks = useMemo(() => board?.tasks ?? [], [board])
+  const relationships = useMemo(() => board?.relationships ?? [], [board])
+  const viewport = board?.viewport
   const state = useTaskFilters(tasks, INITIAL_STATUSES, relationships)
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
@@ -44,6 +53,33 @@ function App() {
   const { createTodo, isSubmitting: isCreatingTodo, error: createError } = useCreateTodo({
     onSuccess: handleCreatedTodo,
   })
+  const {
+    updatePosition,
+    isUpdating: isUpdatingPosition,
+    error: moveError,
+  } = useUpdateTodoPosition()
+
+  const handleMoveTask = useCallback(
+    async (taskId: string, position: TaskBoardTask['position']) => {
+      setBoard((current) => {
+        if (!current) return current
+        return {
+          ...current,
+          tasks: current.tasks.map((task) =>
+            task.id === taskId ? { ...task, position } : task,
+          ),
+        }
+      })
+      try {
+        await updatePosition(taskId, position)
+        await reload()
+      } catch (cause) {
+        console.error('Failed to move task', cause)
+        await reload()
+      }
+    },
+    [updatePosition, reload],
+  )
 
   if (isLoading) {
     return <BoardLoadingState />
@@ -59,11 +95,15 @@ function App() {
       hoveredTaskId={hoveredTaskId}
       selectedTaskId={selectedTaskId}
       relationships={state.filteredRelationships}
+      initialViewport={viewport}
       onSelectTask={handleSelectTask}
       onHoverTask={setHoveredTaskId}
       onCreateTodo={createTodo}
       isCreatingTodo={isCreatingTodo}
       creationError={createError}
+      onMoveTask={handleMoveTask}
+      isMovePending={isUpdatingPosition}
+      moveError={moveError}
     />
   )
 }
@@ -75,11 +115,15 @@ type LandingPageProps = Readonly<{
   hoveredTaskId?: string
   selectedTaskId?: string
   relationships?: readonly TaskBoardRelationship[]
+  initialViewport?: TaskBoardViewport
   onHoverTask: (taskId: string | undefined) => void
   onSelectTask: (taskId: string) => void
   onCreateTodo: (values: AddTodoFormValues) => Promise<void>
   isCreatingTodo: boolean
   creationError?: string
+  onMoveTask: (taskId: string, position: TaskBoardTask['position']) => Promise<void> | void
+  isMovePending: boolean
+  moveError?: string
 }>
 
 const LandingPage = ({
@@ -87,11 +131,15 @@ const LandingPage = ({
   hoveredTaskId,
   selectedTaskId,
   relationships,
+  initialViewport,
   onSelectTask,
   onHoverTask,
   onCreateTodo,
   isCreatingTodo,
   creationError,
+  onMoveTask,
+  isMovePending,
+  moveError,
 }: LandingPageProps): JSX.Element => (
   <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
     <div className="container mx-auto px-4 py-10">
@@ -109,9 +157,13 @@ const LandingPage = ({
           <TaskBoardSection
             tasks={state.filteredTasks}
             relationships={relationships}
+            initialViewport={initialViewport}
             hoveredTaskId={hoveredTaskId}
             onHoverTask={onHoverTask}
             onSelectTask={onSelectTask}
+            onMoveTask={onMoveTask}
+            isMovePending={isMovePending}
+            moveError={moveError}
             selectedTaskId={selectedTaskId}
           />
           <SidebarSection
@@ -143,8 +195,12 @@ type TaskBoardSectionProps = Readonly<{
   relationships?: readonly TaskBoardRelationship[]
   hoveredTaskId?: string
   selectedTaskId?: string
+  initialViewport?: TaskBoardViewport
   onSelectTask: (taskId: string) => void
   onHoverTask: (taskId: string | undefined) => void
+  onMoveTask?: (taskId: string, position: TaskBoardTask['position']) => Promise<void> | void
+  isMovePending?: boolean
+  moveError?: string
 }>
 
 const TaskBoardSection = ({
@@ -152,8 +208,12 @@ const TaskBoardSection = ({
   relationships,
   hoveredTaskId,
   selectedTaskId,
+  initialViewport,
   onSelectTask,
   onHoverTask,
+  onMoveTask,
+  isMovePending,
+  moveError,
 }: TaskBoardSectionProps): JSX.Element => (
   <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
     {tasks.length === 0 ? (
@@ -161,14 +221,31 @@ const TaskBoardSection = ({
         No visual tasks yet. Create one above or use the CLI to seed your spatial board.
       </p>
     ) : (
-      <TaskBoard
-        tasks={tasks}
-        relationships={relationships}
-        selectedId={selectedTaskId}
-        hoverId={hoveredTaskId}
-        onHover={onHoverTask}
-        onSelect={onSelectTask}
-      />
+      <>
+        <TaskBoard
+          tasks={tasks}
+          relationships={relationships}
+          selectedId={selectedTaskId}
+          hoverId={hoveredTaskId}
+          onHover={onHoverTask}
+          onSelect={onSelectTask}
+          initialViewport={initialViewport}
+          onMoveTask={onMoveTask}
+          isMovePending={isMovePending}
+        />
+        {(isMovePending || moveError) && (
+          <div className="mt-4 space-y-2 text-xs">
+            {isMovePending && (
+              <p className="font-medium text-gray-500">Saving your layout…</p>
+            )}
+            {moveError && (
+              <p role="alert" className="font-semibold text-red-500">
+                {moveError}
+              </p>
+            )}
+          </div>
+        )}
+      </>
     )}
   </section>
 )

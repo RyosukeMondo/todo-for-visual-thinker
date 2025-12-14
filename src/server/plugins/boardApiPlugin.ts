@@ -7,11 +7,14 @@ import { serializeError, serializeTodo } from '@cli/serializers'
 import type {
   CreateTodoRequestDTO,
   CreateTodoResultDTO,
+  UpdateTodoRequestDTO,
+  UpdateTodoResultDTO,
 } from '@shared/types/api'
-import type { TodoPriority, TodoStatus } from '@core/domain/Todo'
+import type { CanvasPosition, TodoPriority, TodoStatus } from '@core/domain/Todo'
 import { ValidationError } from '@core/errors'
 import { SnapshotPresenter } from '@server/presenters/SnapshotPresenter'
 import { CreateTodoController } from '@server/controllers/CreateTodoController'
+import { UpdateTodoController } from '@server/controllers/UpdateTodoController'
 import { planSpiralPosition } from '@server/placement/SpiralPositionPlanner'
 
 export const boardApiPlugin = (): Plugin => {
@@ -20,10 +23,13 @@ export const boardApiPlugin = (): Plugin => {
     configureServer(server) {
       const runtime = createRuntime()
       const presenter = new SnapshotPresenter()
-      const controller = new CreateTodoController({
+      const createController = new CreateTodoController({
         createTodo: runtime.createTodo,
         listTodos: runtime.listTodos,
         planPosition: planSpiralPosition,
+      })
+      const updateController = new UpdateTodoController({
+        updateTodo: runtime.updateTodo,
       })
 
       server.middlewares.use('/api/board', async (_req, res) => {
@@ -38,7 +44,28 @@ export const boardApiPlugin = (): Plugin => {
           })
           return
         }
-        await handleCreateTodo(req, res, controller)
+        await handleCreateTodo(req, res, createController)
+      })
+
+      server.middlewares.use('/api/todos/', async (req, res, next) => {
+        if (!req.url) {
+          next()
+          return
+        }
+        const match = /^\/([^/?#]+)/.exec(req.url)
+        if (!match) {
+          next()
+          return
+        }
+        const todoId = match[1]
+        if (req.method !== 'PATCH') {
+          respondJson(res, 405, {
+            success: false,
+            error: { code: 'METHOD_NOT_ALLOWED', message: 'Only PATCH supported' },
+          } satisfies UpdateTodoResultDTO)
+          return
+        }
+        await handleUpdateTodo(req, res, todoId, updateController)
       })
 
       server.httpServer?.once('close', () => runtime.shutdown())
@@ -75,14 +102,38 @@ const handleCreateTodo = async (
     respondJson(res, 201, {
       success: true,
       data: { todo: serializeTodo(todo) },
-    })
+    } satisfies CreateTodoResultDTO)
   } catch (error) {
     const status = error instanceof ValidationError ? 400 : 500
     console.error('Create todo API error', error)
     respondJson(res, status, {
       success: false,
       error: serializeError(error),
-    })
+    } satisfies CreateTodoResultDTO)
+  }
+}
+
+const handleUpdateTodo = async (
+  req: IncomingMessage,
+  res: ServerResponse,
+  todoId: string,
+  controller: UpdateTodoController,
+): Promise<void> => {
+  try {
+    const body = await readJsonBody(req)
+    const payload = mapUpdateTodoPayload(todoId, body)
+    const todo = await controller.handle(payload)
+    respondJson(res, 200, {
+      success: true,
+      data: { todo: serializeTodo(todo) },
+    } satisfies UpdateTodoResultDTO)
+  } catch (error) {
+    const status = error instanceof ValidationError ? 400 : 500
+    console.error('Update todo API error', error)
+    respondJson(res, status, {
+      success: false,
+      error: serializeError(error),
+    } satisfies UpdateTodoResultDTO)
   }
 }
 
@@ -111,11 +162,11 @@ const readJsonBody = async (req: IncomingMessage): Promise<unknown> => {
 const respondJson = (
   res: ServerResponse,
   statusCode: number,
-  payload: CreateTodoResultDTO,
+  payload: CreateTodoResultDTO | UpdateTodoResultDTO,
 ): void => {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify(payload satisfies CreateTodoResultDTO))
+  res.end(JSON.stringify(payload))
 }
 
 const mapCreateTodoPayload = (body: unknown): CreateTodoRequestDTO => {
@@ -137,6 +188,52 @@ const mapCreateTodoPayload = (body: unknown): CreateTodoRequestDTO => {
     status: parseOptionalStatus(record.status),
     priority: parseOptionalPriority(record.priority),
   }
+}
+
+const mapUpdateTodoPayload = (
+  id: string,
+  body: unknown,
+): UpdateTodoRequestDTO & { id: string } => {
+  if (!body || typeof body !== 'object') {
+    throw new ValidationError('Payload must be an object')
+  }
+  const record = body as Record<string, unknown>
+  return {
+    id,
+    title: normalizeOptionalText(record.title),
+    description: normalizeOptionalNullableText(record.description),
+    category: normalizeOptionalNullableText(record.category),
+    color: normalizeOptionalText(record.color),
+    icon: normalizeOptionalNullableText(record.icon),
+    priority: parseOptionalPriority(record.priority),
+    status: parseOptionalStatus(record.status),
+    position: mapOptionalPosition(record.position),
+  }
+}
+
+const normalizeOptionalNullableText = (
+  value: unknown,
+): string | null | undefined => {
+  if (value === null) return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const mapOptionalPosition = (
+  value: unknown,
+): Partial<CanvasPosition> | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const x = parseOptionalCoordinate(record.x, 'x')
+  const y = parseOptionalCoordinate(record.y, 'y')
+  if (x === undefined && y === undefined) {
+    return undefined
+  }
+  const position: Partial<CanvasPosition> = {}
+  if (x !== undefined) position.x = x
+  if (y !== undefined) position.y = y
+  return position
 }
 
 const normalizeText = (value: unknown, field: string): string => {
@@ -182,3 +279,21 @@ const parseOptionalStatus = (value: unknown): TodoStatus | undefined => {
 }
 
 const ALLOWED_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
+
+const parseOptionalCoordinate = (
+  value: unknown,
+  field: string,
+): number | undefined => {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  const parsed =
+    typeof value === 'number' ? value : Number.parseFloat(String(value))
+  if (!Number.isFinite(parsed)) {
+    throw new ValidationError('Coordinate must be a finite number', {
+      field,
+      value,
+    })
+  }
+  return parsed
+}
