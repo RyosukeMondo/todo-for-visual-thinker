@@ -13,6 +13,7 @@ import {
   AddTodoForm,
   DependencyHealthPanel,
   TaskBoard,
+  TaskHierarchyPanel,
   TaskMetricsPanel,
 } from './components'
 import { TaskFilters } from './components/TaskFilters'
@@ -252,12 +253,15 @@ const LandingPage = ({
           />
           <SidebarSection
             tasks={state.filteredTasks}
+            relationships={relationships}
             onCreateTodo={onCreateTodo}
             isCreating={isCreatingTodo}
             errorMessage={creationError}
             boardStatus={boardStatus}
             isStatusLoading={isStatusLoading}
             statusError={statusError}
+            selectedTaskId={selectedTaskId}
+            onSelectTask={onSelectTask}
           />
         </div>
       </main>
@@ -339,22 +343,28 @@ const TaskBoardSection = ({
 
 type SidebarSectionProps = Readonly<{
   tasks: readonly TaskBoardTask[]
+  relationships?: readonly TaskBoardRelationship[]
   onCreateTodo: (values: AddTodoFormValues) => Promise<void> | void
   isCreating: boolean
   errorMessage?: string
   boardStatus?: BoardStatusDTO
   isStatusLoading: boolean
   statusError?: string
+  selectedTaskId?: string
+  onSelectTask?: (taskId: string) => void
 }>
 
 const SidebarSection = ({
   tasks,
+  relationships,
   onCreateTodo,
   isCreating,
   errorMessage,
   boardStatus,
   isStatusLoading,
   statusError,
+  selectedTaskId,
+  onSelectTask,
 }: SidebarSectionProps): JSX.Element => (
   <div className="space-y-6 xl:sticky xl:top-12">
     <AddTodoForm
@@ -364,6 +374,12 @@ const SidebarSection = ({
       className="h-fit"
     />
     <TaskMetricsPanel tasks={tasks} />
+    <TaskHierarchyPanel
+      tasks={tasks}
+      relationships={relationships}
+      selectedTaskId={selectedTaskId}
+      onSelectTask={onSelectTask}
+    />
     <DependencyHealthPanel
       status={boardStatus}
       isLoading={isStatusLoading}

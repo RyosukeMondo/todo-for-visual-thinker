@@ -15,6 +15,7 @@ import { registerDeleteRelationshipsCommand } from './commands/deleteRelationshi
 import { registerUpdateRelationshipCommand } from './commands/updateRelationship'
 import { registerStatusCommand } from './commands/status'
 import { registerSnapshotCommand } from './commands/snapshot'
+import { registerHierarchyCommand } from './commands/hierarchy'
 import { registerInitDbCommand } from './commands/initDb'
 import { planSpiralPosition } from '@server/placement/SpiralPositionPlanner'
 
@@ -99,4 +100,5 @@ const registerBoardCommands = (
 ): void => {
   registerStatusCommand(program, { getBoardStatus: runtime.getBoardStatus }, io)
   registerSnapshotCommand(program, { getBoardSnapshot: runtime.getBoardSnapshot }, io)
+  registerHierarchyCommand(program, { getBoardSnapshot: runtime.getBoardSnapshot }, io)
 }
