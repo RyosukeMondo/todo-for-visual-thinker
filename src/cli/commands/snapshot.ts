@@ -4,7 +4,7 @@ import type { GetBoardSnapshot } from '@core/usecases/GetBoardSnapshot'
 
 import type { CliIO } from '../io'
 import { writeJson } from '../io'
-import { serializeError, serializeTodo } from '../serializers'
+import { serializeError, serializeRelationship, serializeTodo } from '../serializers'
 import { mapTodoFiltersToQuery } from './todoQueryOptions'
 import type { TodoFilterOptions } from './todoQueryOptions'
 
@@ -68,4 +68,7 @@ const serializeSnapshot = (
   viewport: snapshot.viewport,
   bounds: snapshot.bounds,
   tasks: snapshot.tasks.map((todo) => serializeTodo(todo)),
+  relationships: snapshot.relationships.map((relationship) =>
+    serializeRelationship(relationship),
+  ),
 })

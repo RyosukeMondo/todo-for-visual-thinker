@@ -59,7 +59,7 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const listTodos = new ListTodos({ repository })
   const listRelationships = new ListRelationships({ repository: relationships })
   const getBoardStatus = new GetBoardStatus({ repository })
-  const getBoardSnapshot = new GetBoardSnapshot({ repository })
+  const getBoardSnapshot = new GetBoardSnapshot({ repository, relationships })
   const deleteTodo = new DeleteTodo({
     repository,
     relationships,

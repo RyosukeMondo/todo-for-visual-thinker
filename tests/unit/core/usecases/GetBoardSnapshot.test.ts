@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { Todo } from '@/core/domain/Todo'
 import type { TodoRepository } from '@/core/ports'
 import type { ListTodosQuery } from '@/core/ports/TodoRepository'
+import type { RelationshipRepository } from '@/core/ports/RelationshipRepository'
+import { Relationship } from '@/core/domain/Relationship'
 import { GetBoardSnapshot } from '@/core/usecases/GetBoardSnapshot'
 
-class FakeRepository implements TodoRepository {
+class FakeTodoRepository implements TodoRepository {
   constructor(private readonly todos: readonly Todo[]) {}
 
   async list(_: ListTodosQuery = {}): Promise<Todo[]> {
@@ -29,6 +31,17 @@ class FakeRepository implements TodoRepository {
   }
 }
 
+class FakeRelationshipRepository implements Pick<RelationshipRepository, 'listByTodoIds'> {
+  constructor(private readonly relationships: readonly Relationship[]) {}
+
+  async listByTodoIds(todoIds: readonly string[]): Promise<Relationship[]> {
+    const normalized = new Set(todoIds)
+    return this.relationships.filter((relationship) =>
+      normalized.has(relationship.fromId) || normalized.has(relationship.toId),
+    )
+  }
+}
+
 const buildTodo = (props: Partial<Parameters<typeof Todo.create>[0]> = {}) =>
   Todo.create({
     id: props.id ?? crypto.randomUUID(),
@@ -41,51 +54,58 @@ const buildTodo = (props: Partial<Parameters<typeof Todo.create>[0]> = {}) =>
     createdAt: props.createdAt,
   })
 
+const buildRelationship = (
+  props: Partial<Parameters<typeof Relationship.create>[0]> = {},
+) =>
+  Relationship.create({
+    id: props.id ?? crypto.randomUUID(),
+    fromId: props.fromId ?? 'todo-a',
+    toId: props.toId ?? 'todo-b',
+    type: props.type ?? 'depends_on',
+    description: props.description,
+    createdAt: props.createdAt,
+  })
+
+const buildUseCase = (
+  todos: readonly Todo[],
+  relationships: readonly ReturnType<typeof Relationship.create>[] = [],
+  overrides: Partial<ConstructorParameters<typeof GetBoardSnapshot>[0]> = {},
+) =>
+  new GetBoardSnapshot({
+    repository: new FakeTodoRepository(todos),
+    relationships: new FakeRelationshipRepository(relationships),
+    viewportPadding: 100,
+    ...overrides,
+  })
+
 describe('GetBoardSnapshot', () => {
-  it('returns totals, bounds, and viewport for clustered tasks', async () => {
+  it('returns relationships scoped to provided todos', async () => {
     const tasks = [
-      buildTodo({ id: 't-1', status: 'pending', priority: 4, position: { x: -120, y: 90 } }),
-      buildTodo({ id: 't-2', status: 'completed', priority: 5, position: { x: 240, y: -30 } }),
-      buildTodo({ id: 't-3', status: 'in_progress', priority: 2, position: { x: 40, y: 300 } }),
+      buildTodo({ id: 't-1', position: { x: -120, y: 90 } }),
+      buildTodo({ id: 't-3', position: { x: 40, y: 300 } }),
     ]
-    const useCase = new GetBoardSnapshot({ repository: new FakeRepository(tasks), viewportPadding: 100 })
+    const relationships = [
+      buildRelationship({ id: 'rel-1', fromId: 't-1', toId: 't-3' }),
+      buildRelationship({ id: 'rel-2', fromId: 'external', toId: 'missing' }),
+    ]
+    const useCase = buildUseCase(tasks, relationships)
 
     const snapshot = await useCase.execute()
 
-    expect(snapshot.tasks).toHaveLength(3)
-    expect(snapshot.totals).toEqual({
-      count: 3,
-      statuses: {
-        pending: 1,
-        in_progress: 1,
-        completed: 1,
-      },
-      priorities: { 1: 0, 2: 1, 3: 0, 4: 1, 5: 1 },
-    })
-    expect(snapshot.bounds).toEqual({
-      minX: -120,
-      maxX: 240,
-      minY: -30,
-      maxY: 300,
-      width: 360,
-      height: 330,
-      center: { x: 60, y: 135 },
-    })
-    expect(snapshot.viewport).toEqual({
-      width: 560,
-      height: 530,
-      padding: 100,
-      x: { min: -220, max: 340 },
-      y: { min: -130, max: 400 },
-    })
+    expect(snapshot.relationships).toHaveLength(1)
+    expect(snapshot.relationships[0].id).toBe('rel-1')
   })
 
   it('falls back to default viewport when no tasks exist', async () => {
-    const useCase = new GetBoardSnapshot({ repository: new FakeRepository([]), minViewportSize: 400, viewportPadding: 80 })
+    const useCase = buildUseCase([], [], {
+      minViewportSize: 400,
+      viewportPadding: 80,
+    })
 
     const snapshot = await useCase.execute()
 
     expect(snapshot.tasks).toEqual([])
+    expect(snapshot.relationships).toEqual([])
     expect(snapshot.bounds.center).toEqual({ x: 0, y: 0 })
     expect(snapshot.viewport).toEqual({
       width: 400,

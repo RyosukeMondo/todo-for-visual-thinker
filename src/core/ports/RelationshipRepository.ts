@@ -23,6 +23,7 @@ export interface RelationshipRepository {
   list(query?: RelationshipQuery): Promise<Relationship[]>
   delete(id: string): Promise<void>
   deleteByTodoId(todoId: string): Promise<void>
+  listByTodoIds(todoIds: readonly string[]): Promise<Relationship[]>
 }
 
 export type { Relationship }

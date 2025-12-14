@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerSnapshotCommand } from '@/cli/commands/snapshot'
 import type { CliIO } from '@/cli/io'
 import { Todo } from '@/core/domain/Todo'
+import { Relationship } from '@/core/domain/Relationship'
 import type { GetBoardSnapshot } from '@/core/usecases/GetBoardSnapshot'
 import { ValidationError } from '@/core/errors'
 
@@ -48,6 +49,18 @@ const buildTodo = (overrides: Partial<Parameters<typeof Todo.create>[0]> = {}) =
     createdAt: overrides.createdAt,
   })
 
+const buildRelationship = (
+  overrides: Partial<Parameters<typeof Relationship.create>[0]> = {},
+) =>
+  Relationship.create({
+    id: overrides.id ?? 'rel-1',
+    fromId: overrides.fromId ?? 'todo-1',
+    toId: overrides.toId ?? 'todo-2',
+    type: overrides.type ?? 'depends_on',
+    description: overrides.description,
+    createdAt: overrides.createdAt,
+  })
+
 let executeMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
@@ -65,6 +78,7 @@ describe('snapshot CLI command', () => {
   it('returns serialized snapshot payloads', async () => {
     executeMock.mockResolvedValue({
       tasks: [buildTodo({ id: 'todo-a', position: { x: 50, y: -20 } })],
+      relationships: [buildRelationship({ id: 'rel-a', fromId: 'todo-a', toId: 'todo-b' })],
       totals: { count: 1, statuses: { pending: 1, in_progress: 0, completed: 0 }, priorities: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 0 } },
       bounds: { minX: 50, maxX: 50, minY: -20, maxY: -20, width: 0, height: 0, center: { x: 50, y: -20 } },
       viewport: { width: 480, height: 480, padding: 240, x: { min: -190, max: 290 }, y: { min: -260, max: 220 } },
@@ -87,6 +101,8 @@ describe('snapshot CLI command', () => {
     expect(payload.success).toBe(true)
     expect(payload.data.totals.count).toBe(1)
     expect(payload.data.tasks[0].position).toEqual({ x: 50, y: -20 })
+    expect(payload.data.relationships).toHaveLength(1)
+    expect(payload.data.relationships[0].id).toBe('rel-a')
   })
 
   it('emits structured errors for invalid filters', async () => {

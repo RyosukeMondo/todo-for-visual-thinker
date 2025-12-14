@@ -1,14 +1,11 @@
-import type {
-  CanvasPosition,
-  Todo,
-  TodoPriority,
-  TodoStatus,
-} from '@core/domain/Todo'
+import type { CanvasPosition, Todo, TodoPriority, TodoStatus } from '@core/domain/Todo'
+import type { Relationship } from '@core/domain/Relationship'
 import type {
   ListTodosQuery,
   TodoRepository,
   ViewportFilter,
 } from '@core/ports/TodoRepository'
+import type { RelationshipRepository } from '@core/ports/RelationshipRepository'
 
 const STATUS_SEQUENCE: readonly TodoStatus[] = ['pending', 'in_progress', 'completed']
 const PRIORITY_SEQUENCE: readonly TodoPriority[] = [1, 2, 3, 4, 5]
@@ -40,6 +37,7 @@ export type SnapshotViewport = ViewportFilter &
 
 export type BoardSnapshot = Readonly<{
   tasks: readonly Todo[]
+  relationships: readonly Relationship[]
   totals: SnapshotTotals
   bounds: CanvasBounds
   viewport: SnapshotViewport
@@ -47,6 +45,7 @@ export type BoardSnapshot = Readonly<{
 
 export type GetBoardSnapshotDependencies = Readonly<{
   repository: TodoRepository
+  relationships: Pick<RelationshipRepository, 'listByTodoIds'>
   viewportPadding?: number
   minViewportSize?: number
 }>
@@ -62,10 +61,11 @@ export class GetBoardSnapshot {
 
   async execute(query: ListTodosQuery = {}): Promise<BoardSnapshot> {
     const tasks = await this.deps.repository.list(query)
+    const relationships = await this.deps.relationships.listByTodoIds(tasks.map((todo) => todo.id))
     const totals = this.aggregateTotals(tasks)
     const bounds = this.calculateBounds(tasks)
     const viewport = this.buildViewport(bounds)
-    return { tasks, totals, bounds, viewport }
+    return { tasks, relationships, totals, bounds, viewport }
   }
 
   private aggregateTotals(tasks: readonly Todo[]): SnapshotTotals {

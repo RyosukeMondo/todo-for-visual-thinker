@@ -93,6 +93,29 @@ export class SQLiteRelationshipRepository implements RelationshipRepository {
     return rows.map((row) => this.fromRow(row))
   }
 
+  async listByTodoIds(todoIds: readonly string[]): Promise<Relationship[]> {
+    if (todoIds.length === 0) {
+      return []
+    }
+    const unique = [...new Set(todoIds)].map((value) => value.trim()).filter(Boolean)
+    if (unique.length === 0) {
+      return []
+    }
+    const placeholders = unique.map((_, index) => `@id${index}`).join(', ')
+    const params = unique.reduce<Record<string, string>>((acc, value, index) => {
+      acc[`id${index}`] = value
+      return acc
+    }, {})
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM ${this.tableName}
+         WHERE from_task_id IN (${placeholders})
+            OR to_task_id IN (${placeholders})`,
+      )
+      .all(params) as RelationshipRow[]
+    return rows.map((row) => this.fromRow(row))
+  }
+
   async delete(id: string): Promise<void> {
     this.db
       .prepare(`DELETE FROM ${this.tableName} WHERE id = @id`)
