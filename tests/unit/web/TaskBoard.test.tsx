@@ -1,4 +1,5 @@
 import { fireEvent, render } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { TaskBoardRelationship, TaskBoardTask } from '@/web/components'
@@ -49,6 +50,27 @@ describe('TaskBoard interactions', () => {
     fireEvent.click(getByText('Peripheral vision'))
 
     expect(handleSelect).toHaveBeenCalledWith('todo-2')
+  })
+
+  it('dims peripheral tasks when focus mode is enabled', () => {
+    const { getByRole, getAllByRole } = render(
+      <TaskBoard tasks={sampleTasks} selectedId="todo-1" />,
+    )
+
+    const focusToggle = getByRole('button', { name: 'Toggle focus mode' })
+    fireEvent.click(focusToggle)
+
+    expect(focusToggle).toHaveAttribute('aria-pressed', 'true')
+    const cards = getAllByRole('article')
+    const dimmedCard = cards.find((card) =>
+      card.getAttribute('aria-label')?.includes('Peripheral vision'),
+    )
+    expect(dimmedCard).toHaveAttribute('data-dimmed', 'true')
+  })
+
+  it('disables focus mode toggle when no task is selected', () => {
+    const { getByRole } = render(<TaskBoard tasks={sampleTasks} />)
+    expect(getByRole('button', { name: 'Toggle focus mode' })).toBeDisabled()
   })
 })
 

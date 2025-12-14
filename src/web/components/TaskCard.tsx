@@ -55,6 +55,7 @@ export type TaskCardProps = Readonly<{
   position?: CanvasPosition
   size?: VisualSize
   isSelected?: boolean
+  isDimmed?: boolean
   className?: string
   style?: CSSProperties
 }>
@@ -70,12 +71,13 @@ export const TaskCard = ({
   position,
   size,
   isSelected = false,
+  isDimmed = false,
   className,
   style,
 }: TaskCardProps): JSX.Element => {
   const resolvedSize = size ?? inferSize(priority)
   const statusVisual = STATUS_VISUALS[status]
-  const classes = buildCardClass(resolvedSize, isSelected, className)
+  const classes = buildCardClass(resolvedSize, isSelected, isDimmed, className)
   const accentStyle = buildAccentStyle(color, isSelected, style)
   const ariaLabel = `${title} • ${statusVisual.label} • Priority ${priority}`
 
@@ -85,6 +87,7 @@ export const TaskCard = ({
       className={classes}
       data-size={resolvedSize}
       data-status={status}
+      data-dimmed={isDimmed ? 'true' : undefined}
       aria-label={ariaLabel}
       style={accentStyle}
     >
@@ -188,6 +191,7 @@ const inferSize = (priority: TodoPriority): VisualSize => {
 const buildCardClass = (
   size: VisualSize,
   isSelected: boolean,
+  isDimmed: boolean,
   extra?: string,
 ): string => {
   const base = 'task-card relative flex flex-col gap-4 rounded-2xl border bg-white/90 shadow-lg shadow-gray-900/5 transition-all duration-200 ease-out backdrop-blur'
@@ -195,7 +199,8 @@ const buildCardClass = (
   const selected = isSelected
     ? 'ring-2 ring-secondary-400 ring-offset-2 shadow-secondary-500/30'
     : 'ring-1 ring-transparent'
-  return [base, motion, selected, SIZE_STYLES[size], extra]
+  const dimmed = isDimmed ? 'opacity-40 saturate-50 blur-[0.5px]' : ''
+  return [base, motion, selected, dimmed, SIZE_STYLES[size], extra]
     .filter(Boolean)
     .join(' ')
 }

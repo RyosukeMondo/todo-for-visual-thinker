@@ -47,4 +47,12 @@ describe('TaskCard', () => {
 
     expect(screen.getByRole('article')).toHaveClass('ring-2')
   })
+
+  it('sets dimmed data attribute and reduced opacity when isDimmed', () => {
+    render(<TaskCard {...baseProps} isDimmed />)
+
+    const card = screen.getByRole('article')
+    expect(card).toHaveAttribute('data-dimmed', 'true')
+    expect(card.className).toContain('opacity-40')
+  })
 })
