@@ -49,6 +49,9 @@ pnpm dev
 # Run CLI
 pnpm cli <command>
 
+# Visualize parent-child task flows
+pnpm cli hierarchy
+
 # Run tests
 pnpm test
 
