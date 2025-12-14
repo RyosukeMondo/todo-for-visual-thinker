@@ -70,4 +70,9 @@ describe('AddTodoForm', () => {
     rerender(<AddTodoForm />)
     expect(screen.getByRole('button', { name: /add task/i })).toBeDisabled()
   })
+
+  it('renders error messages when provided', () => {
+    render(<AddTodoForm errorMessage="Title is required" />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Title is required')
+  })
 })

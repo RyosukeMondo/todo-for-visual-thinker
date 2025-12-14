@@ -2,26 +2,13 @@ import type { Todo } from '@core/domain/Todo'
 import type { Relationship } from '@core/domain/Relationship'
 import type { Category } from '@core/domain/Category'
 import { DomainError } from '@core/errors'
+import type { JsonError, TodoDTO } from '@shared/types/api'
 
-export type SerializedTodo = Omit<
-  ReturnType<Todo['toJSON']>,
-  'createdAt' | 'updatedAt' | 'completedAt'
-> & {
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-}
-
-export type JsonError = Readonly<{
-  code: string
-  message: string
-  context?: Record<string, unknown>
-}>
-
-export const serializeTodo = (todo: Todo): SerializedTodo => {
+export const serializeTodo = (todo: Todo): TodoDTO => {
   const props = todo.toJSON()
   return {
     ...props,
+    visualSize: todo.visualSize,
     createdAt: props.createdAt.toISOString(),
     updatedAt: props.updatedAt.toISOString(),
     completedAt: props.completedAt?.toISOString(),

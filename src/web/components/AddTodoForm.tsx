@@ -1,7 +1,16 @@
-import { useMemo, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import type { TodoPriority, TodoStatus } from '@core/domain/Todo'
+
+import {
+  DEFAULT_COLOR_OPTIONS,
+  MAX_PRIORITY,
+  MIN_PRIORITY,
+  clampPriority,
+  useAddTodoForm,
+  type AddTodoFormController,
+  type FormState,
+} from './AddTodoForm.state'
 
 const STATUS_COPY: Record<TodoStatus, { label: string; description: string; accent: string }> = {
   pending: {
@@ -23,18 +32,6 @@ const STATUS_COPY: Record<TodoStatus, { label: string; description: string; acce
 
 const DEFAULT_STATUSES: readonly TodoStatus[] = ['pending', 'in_progress', 'completed']
 
-type Palette = readonly [string, ...string[]]
-
-const DEFAULT_COLORS: Palette = [
-  '#ef4444',
-  '#f97316',
-  '#facc15',
-  '#22c55e',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899',
-] as const
-
 const ICON_SUGGESTIONS = ['🧠', '🎨', '🚀', '🧭', '💡', '✨'] as const
 
 const PRIORITY_LABELS: Record<TodoPriority, string> = {
@@ -44,9 +41,6 @@ const PRIORITY_LABELS: Record<TodoPriority, string> = {
   4: 'High impact',
   5: 'Critical',
 }
-
-const MIN_PRIORITY: TodoPriority = 1
-const MAX_PRIORITY: TodoPriority = 5
 
 export type AddTodoFormValues = Readonly<{
   title: string
@@ -59,34 +53,24 @@ export type AddTodoFormValues = Readonly<{
 }>
 
 export type AddTodoFormProps = Readonly<{
-  onSubmit?: (values: AddTodoFormValues) => void
+  onSubmit?: (values: AddTodoFormValues) => Promise<void> | void
   statusOptions?: readonly TodoStatus[]
   colorOptions?: readonly string[]
   iconSuggestions?: readonly string[]
   defaultValues?: Partial<AddTodoFormValues>
   isSubmitting?: boolean
+  errorMessage?: string
   className?: string
 }>
-
-type FormState = Readonly<{
-  title: string
-  description: string
-  status: TodoStatus
-  priority: TodoPriority
-  category: string
-  color: string
-  icon: string
-}>
-
-const EMPTY_FIELD = ''
 
 export const AddTodoForm = ({
   onSubmit,
   statusOptions = DEFAULT_STATUSES,
-  colorOptions = DEFAULT_COLORS,
+  colorOptions = DEFAULT_COLOR_OPTIONS,
   iconSuggestions = ICON_SUGGESTIONS,
   defaultValues,
   isSubmitting = false,
+  errorMessage,
   className,
 }: AddTodoFormProps): JSX.Element => {
   const controller = useAddTodoForm({
@@ -102,17 +86,19 @@ export const AddTodoForm = ({
       statusOptions={statusOptions}
       iconSuggestions={iconSuggestions}
       isSubmitting={isSubmitting}
+      errorMessage={errorMessage}
       {...controller}
     />
   )
 }
 
 type AddTodoFormViewProps = Readonly<
-  ReturnType<typeof useAddTodoForm> & {
+  AddTodoFormController & {
     className?: string
     statusOptions: readonly TodoStatus[]
     iconSuggestions: readonly string[]
     isSubmitting: boolean
+    errorMessage?: string
   }>
 
 const AddTodoFormView = ({
@@ -132,6 +118,7 @@ const AddTodoFormView = ({
   statusOptions,
   iconSuggestions,
   isSubmitting,
+  errorMessage,
 }: AddTodoFormViewProps): JSX.Element => (
   <form
     className={buildFormClasses(className)}
@@ -151,6 +138,7 @@ const AddTodoFormView = ({
       <ColorPalette colors={palette} value={values.color} onSelect={setColor} />
     </div>
     <IconSelector value={values.icon} suggestions={iconSuggestions} onChange={setIcon} />
+    {errorMessage && <FormErrorMessage message={errorMessage} />}
     <AddTodoFormActions
       canSubmit={canSubmit}
       isSubmitting={isSubmitting}
@@ -244,6 +232,15 @@ const AddTodoFormActions = ({
       Clear
     </button>
   </div>
+)
+
+const FormErrorMessage = ({ message }: { message: string }): JSX.Element => (
+  <p
+    role="alert"
+    className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 shadow-inner"
+  >
+    {message}
+  </p>
 )
 
 const buildFormClasses = (className?: string): string =>
@@ -399,126 +396,4 @@ const buildStatusClasses = (isActive: boolean, status: TodoStatus): string => {
     'flex flex-col rounded-2xl border bg-white/80 px-4 py-3 text-left shadow transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
   const accent = isActive ? 'ring-2 ring-secondary-400 ring-offset-2' : 'ring-1 ring-transparent'
   return `${base} ${accent} ${STATUS_COPY[status].accent}`
-}
-
-const sanitizeHexColor = (value: string | undefined, palette: Palette): string => {
-  const normalized = value?.trim().toLowerCase()
-  if (normalized && /^#([0-9a-f]{6})$/.test(normalized)) {
-    return normalized
-  }
-  return palette[0]
-}
-
-const clampPriority = (value: number): TodoPriority => {
-  const clamped = Math.min(Math.max(value, MIN_PRIORITY), MAX_PRIORITY)
-  return clamped as TodoPriority
-}
-
-const normalizeValues = (state: FormState, palette: Palette): AddTodoFormValues => {
-  const title = state.title.trim()
-  const description = state.description.trim() || undefined
-  const category = state.category.trim() || undefined
-  const icon = state.icon.trim() || undefined
-  const color = sanitizeHexColor(state.color, palette)
-  const priority = clampPriority(state.priority)
-  return {
-    title,
-    description,
-    category,
-    icon,
-    color,
-    status: state.status,
-    priority,
-  }
-}
-
-const buildPalette = (colors: readonly string[]): Palette => {
-  const sanitized = colors
-    .map((color) => color?.trim().toLowerCase())
-    .filter((color): color is string => Boolean(color) && /^#([0-9a-f]{6})$/.test(color))
-  if (sanitized.length === 0) {
-    return DEFAULT_COLORS
-  }
-  const [first, ...rest] = sanitized
-  return [first, ...rest] as Palette
-}
-
-const buildInitialState = (
-  defaults: Partial<AddTodoFormValues> | undefined,
-  palette: Palette
-): FormState => ({
-  title: defaults?.title ?? EMPTY_FIELD,
-  description: defaults?.description ?? EMPTY_FIELD,
-  status: defaults?.status ?? 'pending',
-  priority: defaults?.priority ?? 3,
-  category: defaults?.category ?? EMPTY_FIELD,
-  color: sanitizeHexColor(defaults?.color, palette),
-  icon: defaults?.icon ?? EMPTY_FIELD,
-})
-
-const resetState = (
-  current: FormState,
-  palette: Palette,
-  defaults?: Partial<AddTodoFormValues>
-): FormState => ({
-  ...buildInitialState(defaults, palette),
-  status: current.status,
-  color: current.color,
-})
-
-type UseAddTodoFormOptions = Readonly<{
-  onSubmit?: (values: AddTodoFormValues) => void
-  colorOptions: readonly string[]
-  defaultValues?: Partial<AddTodoFormValues>
-  isSubmitting: boolean
-}>
-
-const useAddTodoForm = ({
-  onSubmit,
-  colorOptions,
-  defaultValues,
-  isSubmitting,
-}: UseAddTodoFormOptions) => {
-  const palette = useMemo<Palette>(() => buildPalette(colorOptions), [colorOptions])
-  const initialState = useMemo(
-    () => buildInitialState(defaultValues, palette),
-    [defaultValues, palette]
-  )
-  const [values, setValues] = useState<FormState>(initialState)
-  const canSubmit = values.title.trim().length > 0 && !isSubmitting
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault()
-    if (!canSubmit) {
-      return
-    }
-    const normalized = normalizeValues(values, palette)
-    onSubmit?.(normalized)
-    setValues((current) => resetState(current, palette, defaultValues))
-  }
-
-  const handleClear = (): void => {
-    setValues((current) => resetState(current, palette, defaultValues))
-  }
-
-  const setter =
-    <K extends keyof FormState>(field: K) =>
-    (value: FormState[K]): void => {
-      setValues((state) => ({ ...state, [field]: value }))
-    }
-
-  return {
-    values,
-    palette,
-    canSubmit,
-    handleSubmit,
-    handleClear,
-    setTitle: setter('title'),
-    setCategory: setter('category'),
-    setDescription: setter('description'),
-    setStatus: setter('status'),
-    setPriority: setter('priority'),
-    setColor: setter('color'),
-    setIcon: setter('icon'),
-  }
 }

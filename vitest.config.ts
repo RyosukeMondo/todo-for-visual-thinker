@@ -37,6 +37,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@web': path.resolve(__dirname, './src/web'),
       '@shared': path.resolve(__dirname, './src/shared'),
+      '@server': path.resolve(__dirname, './src/server'),
     },
   },
 })

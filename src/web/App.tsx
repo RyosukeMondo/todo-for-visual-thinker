@@ -8,16 +8,15 @@ import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
 import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
 import { useBoardData } from './hooks/useBoardData'
+import { useCreateTodo } from './hooks/useCreateTodo'
+import type { AddTodoFormValues } from './components/AddTodoForm'
 
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
-  const board = useBoardData()
-  const tasks = useMemo(() => board.data?.tasks ?? [], [board.data])
-  const relationships = useMemo(
-    () => board.data?.relationships ?? [],
-    [board.data],
-  )
+  const { data, isLoading, error, reload } = useBoardData()
+  const tasks = useMemo(() => data?.tasks ?? [], [data])
+  const relationships = useMemo(() => data?.relationships ?? [], [data])
   const state = useTaskFilters(tasks, INITIAL_STATUSES, relationships)
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
@@ -38,12 +37,20 @@ function App() {
     setSelectedTaskId(taskId)
   }, [])
 
-  if (board.isLoading) {
+  const handleCreatedTodo = useCallback(async () => {
+    await reload()
+  }, [reload])
+
+  const { createTodo, isSubmitting: isCreatingTodo, error: createError } = useCreateTodo({
+    onSuccess: handleCreatedTodo,
+  })
+
+  if (isLoading) {
     return <BoardLoadingState />
   }
 
-  if (board.error) {
-    return <BoardErrorState message={board.error} onRetry={board.reload} />
+  if (error) {
+    return <BoardErrorState message={error} onRetry={reload} />
   }
 
   return (
@@ -54,6 +61,9 @@ function App() {
       relationships={state.filteredRelationships}
       onSelectTask={handleSelectTask}
       onHoverTask={setHoveredTaskId}
+      onCreateTodo={createTodo}
+      isCreatingTodo={isCreatingTodo}
+      creationError={createError}
     />
   )
 }
@@ -67,6 +77,9 @@ type LandingPageProps = Readonly<{
   relationships?: readonly TaskBoardRelationship[]
   onHoverTask: (taskId: string | undefined) => void
   onSelectTask: (taskId: string) => void
+  onCreateTodo: (values: AddTodoFormValues) => Promise<void>
+  isCreatingTodo: boolean
+  creationError?: string
 }>
 
 const LandingPage = ({
@@ -76,6 +89,9 @@ const LandingPage = ({
   relationships,
   onSelectTask,
   onHoverTask,
+  onCreateTodo,
+  isCreatingTodo,
+  creationError,
 }: LandingPageProps): JSX.Element => (
   <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
     <div className="container mx-auto px-4 py-10">
@@ -98,7 +114,12 @@ const LandingPage = ({
             onSelectTask={onSelectTask}
             selectedTaskId={selectedTaskId}
           />
-          <SidebarSection tasks={state.filteredTasks} />
+          <SidebarSection
+            tasks={state.filteredTasks}
+            onCreateTodo={onCreateTodo}
+            isCreating={isCreatingTodo}
+            errorMessage={creationError}
+          />
         </div>
       </main>
     </div>
@@ -137,7 +158,7 @@ const TaskBoardSection = ({
   <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
     {tasks.length === 0 ? (
       <p className="text-center text-sm text-gray-500">
-        No visual tasks yet. Use the CLI to add todos into the SQLite board.
+        No visual tasks yet. Create one above or use the CLI to seed your spatial board.
       </p>
     ) : (
       <TaskBoard
@@ -154,11 +175,24 @@ const TaskBoardSection = ({
 
 type SidebarSectionProps = Readonly<{
   tasks: readonly TaskBoardTask[]
+  onCreateTodo: (values: AddTodoFormValues) => Promise<void> | void
+  isCreating: boolean
+  errorMessage?: string
 }>
 
-const SidebarSection = ({ tasks }: SidebarSectionProps): JSX.Element => (
+const SidebarSection = ({
+  tasks,
+  onCreateTodo,
+  isCreating,
+  errorMessage,
+}: SidebarSectionProps): JSX.Element => (
   <div className="space-y-6 xl:sticky xl:top-12">
-    <AddTodoForm onSubmit={(values) => console.info('Add todo', values)} className="h-fit" />
+    <AddTodoForm
+      onSubmit={onCreateTodo}
+      isSubmitting={isCreating}
+      errorMessage={errorMessage}
+      className="h-fit"
+    />
     <TaskMetricsPanel tasks={tasks} />
   </div>
 )
