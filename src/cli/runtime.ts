@@ -1,8 +1,5 @@
 import Database, { type Database as SQLiteInstance } from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
-import { dirname, isAbsolute, resolve } from 'node:path'
-
 import { SQLiteTodoRepository } from '@core/adapters/SQLiteTodoRepository'
 import { SQLiteRelationshipRepository } from '@core/adapters/SQLiteRelationshipRepository'
 import type { TodoRepository, RelationshipRepository } from '@core/ports'
@@ -18,6 +15,8 @@ import {
   UpdateRelationship,
   UpdateTodo,
 } from '@core/usecases'
+
+import { DEFAULT_DB_PATH, ensureDbDirectory, resolveDbPath } from './storage'
 
 export type RuntimeOverrides = Readonly<{
   dbPath?: string
@@ -42,11 +41,9 @@ export type CliRuntime = Readonly<{
   shutdown: () => void
 }>
 
-const DEFAULT_DB_PATH = resolve(process.cwd(), 'data', 'todos.db')
-
 export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   const dbPath = normalizeDbPath(overrides.dbPath ?? DEFAULT_DB_PATH)
-  ensureDirectory(dbPath)
+  ensureDbDirectory(dbPath)
   const openDatabase = overrides.databaseFactory ?? ((path: string) => new Database(path))
   const db = openDatabase(dbPath)
   const repository = new SQLiteTodoRepository(db)
@@ -91,17 +88,6 @@ export const createRuntime = (overrides: RuntimeOverrides = {}): CliRuntime => {
   }
 }
 
-const ensureDirectory = (filePath: string): void => {
-  if (filePath === ':memory:' || filePath.startsWith('file:')) {
-    return
-  }
-  const directory = dirname(filePath)
-  mkdirSync(directory, { recursive: true })
-}
-
 const normalizeDbPath = (candidate: string): string => {
-  if (candidate === ':memory:' || candidate.startsWith('file:')) {
-    return candidate
-  }
-  return isAbsolute(candidate) ? candidate : resolve(candidate)
+  return resolveDbPath(candidate)
 }

@@ -13,6 +13,7 @@ import { registerDeleteRelationshipsCommand } from './commands/deleteRelationshi
 import { registerUpdateRelationshipCommand } from './commands/updateRelationship'
 import { registerStatusCommand } from './commands/status'
 import { registerSnapshotCommand } from './commands/snapshot'
+import { registerInitDbCommand } from './commands/initDb'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -26,6 +27,7 @@ export const buildCliProgram = (
     .version('0.1.0')
 
   registerAddTodoCommand(program, { createTodo: runtime.createTodo }, io)
+  registerInitDbCommand(program, io)
   registerListTodosCommand(program, { listTodos: runtime.listTodos }, io)
   registerDeleteTodosCommand(program, { deleteTodo: runtime.deleteTodo }, io)
   registerUpdateTodoCommand(program, { updateTodo: runtime.updateTodo }, io)

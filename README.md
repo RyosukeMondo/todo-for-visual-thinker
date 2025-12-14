@@ -36,8 +36,8 @@ A task management application designed specifically for visual thinkers, leverag
 # Install dependencies
 pnpm install
 
-# Initialize database (coming soon)
-pnpm cli init
+# Initialize database (creates data/todos.db by default)
+pnpm cli init-db --seed-demo
 ```
 
 ### Development
