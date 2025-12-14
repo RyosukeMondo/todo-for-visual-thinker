@@ -6,7 +6,8 @@ import { registerAddTodoCommand } from '@/cli/commands/addTodo'
 import { Todo } from '@/core/domain/Todo'
 import { ValidationError } from '@/core/errors'
 import type { CliIO } from '@/cli/io'
-import type { CreateTodo } from '@/core/usecases'
+import type { CreateTodo, ListTodos } from '@/core/usecases'
+import type { CanvasPosition } from '@/core/domain/Todo'
 
 const createMemoryStream = () => {
   let buffer = ''
@@ -45,12 +46,30 @@ const buildCompletedTodo = () =>
 const buildProgram = (
   execute: ReturnType<typeof vi.fn>,
   io: CliIO,
-): Command => {
+  overrides: {
+    listTodosExecute?: ReturnType<typeof vi.fn>
+    planPosition?: ReturnType<typeof vi.fn>
+  } = {},
+): {
+  program: Command
+  listTodosExecute: ReturnType<typeof vi.fn>
+  planPosition: ReturnType<typeof vi.fn>
+} => {
   const program = new Command()
   program.exitOverride()
+  const listTodosExecute = overrides.listTodosExecute ?? vi.fn().mockResolvedValue([])
+  const planPosition = overrides.planPosition ?? vi.fn().mockReturnValue({ x: 0, y: 0 })
   const createTodo = { execute } as Pick<CreateTodo, 'execute'>
-  registerAddTodoCommand(program, { createTodo }, io)
-  return program
+  registerAddTodoCommand(
+    program,
+    {
+      createTodo,
+      listTodos: { execute: listTodosExecute as Pick<ListTodos, 'execute'>['execute'] },
+      planPosition: planPosition as (existing: readonly Todo[]) => CanvasPosition,
+    },
+    io,
+  )
+  return { program, listTodosExecute, planPosition }
 }
 
 const stdout = createMemoryStream()
@@ -71,7 +90,7 @@ describe('CLI add command', () => {
 
   it('persists todos through the CreateTodo use case and prints structured output', async () => {
     const execute = vi.fn().mockResolvedValue(buildCompletedTodo())
-    const program = buildProgram(execute, io)
+    const { program, listTodosExecute, planPosition } = buildProgram(execute, io)
 
     await program.parseAsync(
       buildArgs('--priority', '4', '--x', '120', '--y', '80', '--status', 'completed'),
@@ -89,13 +108,15 @@ describe('CLI add command', () => {
     expect(result.data.todo.createdAt).toBe('2024-03-10T12:00:00.000Z')
     expect(stderr.read()).toBe('')
     expect(process.exitCode).toBeUndefined()
+    expect(listTodosExecute).not.toHaveBeenCalled()
+    expect(planPosition).not.toHaveBeenCalled()
   })
 
   it('surfaces domain validation errors as structured JSON and sets exit code', async () => {
     const execute = vi
       .fn()
       .mockRejectedValue(new ValidationError('Title is required', { field: 'title' }))
-    const program = buildProgram(execute, io)
+    const { program } = buildProgram(execute, io)
 
     await program.parseAsync([...baseArgs])
 
@@ -107,7 +128,7 @@ describe('CLI add command', () => {
 
   it('validates CLI-specific options before executing the use case', async () => {
     const execute = vi.fn()
-    const program = buildProgram(execute, io)
+    const { program } = buildProgram(execute, io)
 
     await program.parseAsync(buildArgs('--status', 'unknown'))
 
@@ -115,5 +136,25 @@ describe('CLI add command', () => {
     const payload = JSON.parse(stderr.read().trim())
     expect(payload.error.code).toBe('VALIDATION_ERROR')
     expect(process.exitCode).toBe(1)
+  })
+
+  it('auto-positions tasks when coordinates are not provided', async () => {
+    const execute = vi.fn().mockResolvedValue(buildCompletedTodo())
+    const listTodosExecute = vi.fn().mockResolvedValue([buildCompletedTodo()])
+    const planPosition = vi.fn().mockReturnValue({ x: 640, y: -180 })
+    const { program } = buildProgram(execute, io, {
+      listTodosExecute,
+      planPosition,
+    })
+
+    await program.parseAsync([...baseArgs])
+
+    expect(listTodosExecute).toHaveBeenCalledWith({ limit: 500 })
+    expect(planPosition).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        position: { x: 640, y: -180 },
+      }),
+    )
   })
 })

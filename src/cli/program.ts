@@ -16,6 +16,7 @@ import { registerUpdateRelationshipCommand } from './commands/updateRelationship
 import { registerStatusCommand } from './commands/status'
 import { registerSnapshotCommand } from './commands/snapshot'
 import { registerInitDbCommand } from './commands/initDb'
+import { planSpiralPosition } from '@server/placement/SpiralPositionPlanner'
 
 export const buildCliProgram = (
   runtime: CliRuntime,
@@ -28,7 +29,15 @@ export const buildCliProgram = (
     .description('Neuroscience-backed todo list for visual thinkers')
     .version('0.1.0')
 
-  registerAddTodoCommand(program, { createTodo: runtime.createTodo }, io)
+  registerAddTodoCommand(
+    program,
+    {
+      createTodo: runtime.createTodo,
+      listTodos: runtime.listTodos,
+      planPosition: planSpiralPosition,
+    },
+    io,
+  )
   registerAddCategoryCommand(
     program,
     { createCategory: runtime.createCategory },

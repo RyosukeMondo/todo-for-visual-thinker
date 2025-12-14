@@ -4,17 +4,22 @@ import type {
   CanvasPosition,
   TodoPriority,
   TodoStatus,
+  Todo,
 } from '@core/domain/Todo'
 import { ValidationError } from '@core/errors'
-import type { CreateTodo } from '@core/usecases'
+import type { CreateTodo, ListTodos } from '@core/usecases'
 
 import type { CliIO } from '../io'
 import { writeJson } from '../io'
 import { serializeError, serializeTodo } from '../serializers'
 import { ALLOWED_STATUSES } from '../constants'
 
+type AutoPositionPlanner = (existing: readonly Todo[]) => CanvasPosition
+
 type AddTodoDependencies = Readonly<{
   createTodo: Pick<CreateTodo, 'execute'>
+  listTodos: Pick<ListTodos, 'execute'>
+  planPosition: AutoPositionPlanner
 }>
 
 type AddTodoOptions = {
@@ -59,7 +64,7 @@ const handleAddAction = async (
   io: CliIO,
 ): Promise<void> => {
   try {
-    const payload = mapInput(title, options)
+    const payload = await mapInput(title, options, deps)
     const todo = await deps.createTodo.execute(payload)
     writeJson(io.stdout, {
       success: true,
@@ -76,13 +81,16 @@ const handleAddAction = async (
   }
 }
 
-const mapInput = (
+const AUTO_POSITION_SAMPLE_LIMIT = 500
+
+const mapInput = async (
   title: string,
   options: AddTodoOptions,
-): Parameters<CreateTodo['execute']>[0] => {
+  deps: AddTodoDependencies,
+): Promise<Parameters<CreateTodo['execute']>[0]> => {
   const priority = parseOptionalPriority(options.priority)
-  const position = buildPosition(options)
   const status = parseOptionalStatus(options.status)
+  const position = await resolvePosition(buildPosition(options), deps)
 
   return {
     title,
@@ -94,6 +102,17 @@ const mapInput = (
     position,
     status,
   }
+}
+
+const resolvePosition = async (
+  explicit: Partial<CanvasPosition> | undefined,
+  deps: AddTodoDependencies,
+): Promise<Partial<CanvasPosition> | undefined> => {
+  if (explicit) {
+    return explicit
+  }
+  const existing = await deps.listTodos.execute({ limit: AUTO_POSITION_SAMPLE_LIMIT })
+  return deps.planPosition(existing)
 }
 
 const parseOptionalPriority = (value?: string): TodoPriority | undefined => {
