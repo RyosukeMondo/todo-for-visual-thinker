@@ -1,13 +1,11 @@
 import type { CanvasPosition } from '@core/domain/Todo'
 import type { RelationshipType } from '@core/domain/Relationship'
 
+import { TASK_BOARD_HALF_SIZE, TASK_BOARD_SIZE } from './TaskBoard.constants'
 import type {
   TaskBoardRelationship,
   TaskBoardTask,
 } from './TaskBoard'
-
-const BOARD_SIZE = 4096
-const BOARD_CENTER = BOARD_SIZE / 2
 const DEFAULT_CONNECTION_COLOR = '#94a3b8'
 const RELATIONSHIP_ANCHOR_OFFSET = 64
 const CURVE_PRIMARY_FACTOR = 0.35
@@ -173,4 +171,4 @@ const vectorLength = (vector: { x: number; y: number }): number =>
   Math.hypot(vector.x, vector.y)
 
 const toBoardCoordinate = (value: number): number =>
-  Math.max(0, Math.min(BOARD_SIZE, Math.round(value + BOARD_CENTER)))
+  Math.max(0, Math.min(TASK_BOARD_SIZE, Math.round(value + TASK_BOARD_HALF_SIZE)))

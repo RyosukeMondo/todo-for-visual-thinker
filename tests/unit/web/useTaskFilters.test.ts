@@ -51,8 +51,8 @@ describe('useTaskFilters', () => {
     expect(result.current.filteredTasks).toHaveLength(3)
     expect(result.current.categories.map((category) => category.value)).toEqual([
       'brand',
-      'experience',
       'documentation',
+      'experience',
     ])
     expect(result.current.filteredRelationships).toHaveLength(2)
   })

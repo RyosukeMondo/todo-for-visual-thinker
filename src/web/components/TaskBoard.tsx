@@ -12,13 +12,16 @@ import type { RelationshipType } from '@core/domain/Relationship'
 import { buildConnectionSegments, type ConnectionSegment } from './TaskBoard.connections'
 import { useViewportController, type ViewportController, type ViewportState } from './TaskBoard.viewport'
 import { findNextTaskByDirection, type NavigationDirection } from '../utils/taskNavigation'
+import { TaskBoardMinimap } from './TaskBoardMinimap'
+import type { TaskBoardViewport } from './TaskBoardMinimap'
+import { TASK_BOARD_SIZE } from './TaskBoard.constants'
 
 import { TaskCard } from './TaskCard'
 import type { TaskCardProps } from './TaskCard'
 
-const BOARD_SIZE = 4096
 const KEYBOARD_PAN_STEP = 64
 const KEYBOARD_PAN_MULTI = 2
+const BOARD_SIZE = TASK_BOARD_SIZE
 
 export type TaskBoardTask = TaskCardProps &
   Readonly<{
@@ -71,6 +74,13 @@ export const TaskBoard = ({
   )
 
   const focusId = hoverId ?? internalHover ?? selectedId
+  const viewport: TaskBoardViewport = useMemo(
+    () => ({
+      center: { x: controller.viewport.x, y: controller.viewport.y },
+      scale: controller.viewport.scale,
+    }),
+    [controller.viewport],
+  )
 
   return (
     <TaskBoardView
@@ -82,6 +92,7 @@ export const TaskBoard = ({
       onSelect={onSelect}
       onHover={handleHover}
       relationships={relationships}
+      viewport={viewport}
     />
   )
 }
@@ -107,6 +118,7 @@ const TaskBoardView = ({
   onSelect,
   onHover,
   relationships,
+  viewport,
 }: {
   className: string
   controller: ViewportController
@@ -116,6 +128,7 @@ const TaskBoardView = ({
   onSelect?: (taskId: string) => void
   onHover?: (taskId: string | undefined) => void
   relationships: readonly TaskBoardRelationship[]
+  viewport: TaskBoardViewport
 }): JSX.Element => (
   <section className={className} aria-label="Spatial task board">
     <BoardHeader
@@ -131,6 +144,15 @@ const TaskBoardView = ({
         focusId={hoverId ?? selectedId}
       />
       <BoardNodes tasks={tasks} selectedId={selectedId} onSelect={onSelect} onHover={onHover} />
+      <TaskBoardMinimap
+        tasks={tasks.map((task) => ({
+          id: task.id,
+          position: task.position,
+          color: task.color ?? '#94a3b8',
+        }))}
+        viewport={viewport}
+        onSelect={onSelect}
+      />
     </BoardSurface>
   </section>
 )

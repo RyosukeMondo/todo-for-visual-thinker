@@ -55,7 +55,7 @@ describe('TaskBoard interactions', () => {
 describe('TaskBoard viewport controls (zoom)', () => {
   it('updates viewport via zoom controls', () => {
     const handleViewport = vi.fn()
-    const { getByRole, getByText } = render(
+    const { getByRole } = render(
       <TaskBoard tasks={sampleTasks} onViewportChange={handleViewport} />,
     )
 
@@ -67,7 +67,8 @@ describe('TaskBoard viewport controls (zoom)', () => {
     expect(handleViewport.mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ scale: 1 }),
     )
-    expect(getByText('100%')).toBeDefined()
+    // Expect zoom controller label instead of duplicated scale text
+    expect(getByRole('button', { name: 'Reset view' })).toBeDefined()
   })
 })
 
@@ -98,7 +99,7 @@ describe('TaskBoard viewport controls (keyboard)', () => {
   it('supports keyboard navigation for panning, zoom, and selection', () => {
     const handleViewport = vi.fn()
     const handleSelect = vi.fn()
-    const { getByRole, getByText } = render(
+    const { getByRole } = render(
       <TaskBoard
         tasks={sampleTasks}
         onViewportChange={handleViewport}
@@ -117,7 +118,7 @@ describe('TaskBoard viewport controls (keyboard)', () => {
 
     expect(handleViewport).toHaveBeenCalled()
     expect(handleSelect).toHaveBeenCalledWith('todo-2')
-    expect(getByText('100%')).toBeDefined()
+    expect(getByRole('button', { name: 'Reset view' })).toBeDefined()
   })
 })
 

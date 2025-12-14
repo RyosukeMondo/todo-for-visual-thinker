@@ -1,0 +1,2 @@
+export const TASK_BOARD_SIZE = 4096
+export const TASK_BOARD_HALF_SIZE = TASK_BOARD_SIZE / 2

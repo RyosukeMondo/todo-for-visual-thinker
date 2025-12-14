@@ -134,7 +134,7 @@ const deriveCategories = (
       })
     }
   })
-  return Array.from(seen.values())
+  return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label))
 }
 
 const filterRelationships = (
