@@ -30,7 +30,8 @@
       "@core/*": ["src/core/*"],
       "@cli/*": ["src/cli/*"],
       "@web/*": ["src/web/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@server/*": ["src/server/*"]
     }
   },
   "include": ["src"],

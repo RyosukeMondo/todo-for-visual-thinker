@@ -2,9 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+import { boardApiPlugin } from './src/server/plugins/boardApiPlugin'
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), boardApiPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -12,6 +14,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@web': path.resolve(__dirname, './src/web'),
       '@shared': path.resolve(__dirname, './src/shared'),
+      '@server': path.resolve(__dirname, './src/server'),
     },
   },
   build: {

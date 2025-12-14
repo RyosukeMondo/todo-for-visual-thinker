@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { TodoStatus } from '@core/domain/Todo'
 
@@ -7,71 +7,21 @@ import { AddTodoForm, TaskBoard, TaskMetricsPanel } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
 import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
-
-const sampleTodos: TaskBoardTask[] = [
-  {
-    id: 'todo-001',
-    title: 'Map the launch journey',
-    description:
-      'Sketch the key milestones and dependencies for the v1 product launch to anchor the spatial board.',
-    status: 'in_progress',
-    priority: 4,
-    category: 'Strategy',
-    color: '#f97316',
-    icon: '🧭',
-    position: { x: 320, y: -140 },
-    isSelected: true,
-  },
-  {
-    id: 'todo-002',
-    title: 'Design visual palette',
-    description:
-      'Validate the color semantics and iconography that reduce cognitive load for visual thinkers.',
-    status: 'pending',
-    priority: 3,
-    category: 'Design',
-    color: '#60a5fa',
-    icon: '🎨',
-    position: { x: -120, y: 40 },
-  },
-  {
-    id: 'todo-003',
-    title: 'Prototype infinite canvas',
-    description:
-      'Create an interactive slice of the canvas experience with zoom, pan, and clustering.',
-    status: 'completed',
-    priority: 5,
-    category: 'Experience',
-    color: '#34d399',
-    icon: '🛰️',
-    position: { x: 40, y: 220 },
-  },
-]
-
-const sampleRelationships: TaskBoardRelationship[] = [
-  {
-    id: 'rel-001',
-    fromId: 'todo-001',
-    toId: 'todo-002',
-    type: 'depends_on',
-    color: '#0ea5e9',
-  },
-  {
-    id: 'rel-002',
-    fromId: 'todo-003',
-    toId: 'todo-001',
-    type: 'blocks',
-    color: '#f97316',
-  },
-]
+import { useBoardData } from './hooks/useBoardData'
 
 const INITIAL_STATUSES: TodoStatus[] = ['pending', 'in_progress', 'completed']
 
 function App() {
-  const state = useTaskFilters(sampleTodos, INITIAL_STATUSES, sampleRelationships)
+  const board = useBoardData()
+  const tasks = useMemo(() => board.data?.tasks ?? [], [board.data])
+  const relationships = useMemo(
+    () => board.data?.relationships ?? [],
+    [board.data],
+  )
+  const state = useTaskFilters(tasks, INITIAL_STATUSES, relationships)
   const [hoveredTaskId, setHoveredTaskId] = useState<string | undefined>()
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(
-    () => sampleTodos[0]?.id,
+    () => tasks[0]?.id,
   )
 
   useEffect(() => {
@@ -87,6 +37,14 @@ function App() {
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId)
   }, [])
+
+  if (board.isLoading) {
+    return <BoardLoadingState />
+  }
+
+  if (board.error) {
+    return <BoardErrorState message={board.error} onRetry={board.reload} />
+  }
 
   return (
     <LandingPage
@@ -132,14 +90,14 @@ const LandingPage = ({
           onClearCategories={state.resetCategories}
         />
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.2fr,0.8fr]">
-        <TaskBoardSection
-          tasks={state.filteredTasks}
-          relationships={relationships}
-          hoveredTaskId={hoveredTaskId}
-          onHoverTask={onHoverTask}
-          onSelectTask={onSelectTask}
-          selectedTaskId={selectedTaskId}
-        />
+          <TaskBoardSection
+            tasks={state.filteredTasks}
+            relationships={relationships}
+            hoveredTaskId={hoveredTaskId}
+            onHoverTask={onHoverTask}
+            onSelectTask={onSelectTask}
+            selectedTaskId={selectedTaskId}
+          />
           <SidebarSection tasks={state.filteredTasks} />
         </div>
       </main>
@@ -177,14 +135,20 @@ const TaskBoardSection = ({
   onHoverTask,
 }: TaskBoardSectionProps): JSX.Element => (
   <section className="rounded-[3rem] bg-white/90 p-6 shadow-2xl shadow-primary-500/10">
-    <TaskBoard
-      tasks={tasks}
-      relationships={relationships}
-      selectedId={selectedTaskId}
-      hoverId={hoveredTaskId}
-      onHover={onHoverTask}
-      onSelect={onSelectTask}
-    />
+    {tasks.length === 0 ? (
+      <p className="text-center text-sm text-gray-500">
+        No visual tasks yet. Use the CLI to add todos into the SQLite board.
+      </p>
+    ) : (
+      <TaskBoard
+        tasks={tasks}
+        relationships={relationships}
+        selectedId={selectedTaskId}
+        hoverId={hoveredTaskId}
+        onHover={onHoverTask}
+        onSelect={onSelectTask}
+      />
+    )}
   </section>
 )
 
@@ -196,5 +160,42 @@ const SidebarSection = ({ tasks }: SidebarSectionProps): JSX.Element => (
   <div className="space-y-6 xl:sticky xl:top-12">
     <AddTodoForm onSubmit={(values) => console.info('Add todo', values)} className="h-fit" />
     <TaskMetricsPanel tasks={tasks} />
+  </div>
+)
+
+const BoardLoadingState = (): JSX.Element => (
+  <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50">
+    <div className="space-y-3 text-center text-gray-600">
+      <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary-500">
+        Syncing board
+      </p>
+      <p className="text-2xl font-semibold text-gray-900">Loading your visual tasks…</p>
+      <p>Please ensure you've seeded the database via the CLI.</p>
+    </div>
+  </div>
+)
+
+const BoardErrorState = ({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}): JSX.Element => (
+  <div className="flex min-h-screen items-center justify-center bg-red-50">
+    <div className="space-y-4 rounded-3xl bg-white p-8 text-center shadow-xl shadow-red-100">
+      <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
+        Board unavailable
+      </p>
+      <p className="text-lg font-semibold text-gray-900">Unable to load visual tasks</p>
+      <p className="text-sm text-gray-600">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-full bg-primary-500 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-primary-600"
+      >
+        Try again
+      </button>
+    </div>
   </div>
 )
