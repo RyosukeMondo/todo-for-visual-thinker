@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { TodoStatus } from '@core/domain/Todo'
 
 import type { TaskBoardTask } from './components'
-import { AddTodoForm, TaskBoard } from './components'
+import { AddTodoForm, TaskBoard, TaskMetricsPanel } from './components'
 import { TaskFilters } from './components/TaskFilters'
 import { useTaskFilters } from './hooks/useTaskFilters'
 import type { UseTaskFiltersResult } from './hooks/useTaskFilters'
@@ -108,10 +108,13 @@ const LandingPage = ({
               onHover={onHoverTask}
             />
           </section>
-          <AddTodoForm
-            onSubmit={(values) => console.info('Add todo', values)}
-            className="h-fit"
-          />
+          <div className="space-y-6 xl:sticky xl:top-12">
+            <AddTodoForm
+              onSubmit={(values) => console.info('Add todo', values)}
+              className="h-fit"
+            />
+            <TaskMetricsPanel tasks={state.filteredTasks} />
+          </div>
         </div>
       </main>
     </div>
