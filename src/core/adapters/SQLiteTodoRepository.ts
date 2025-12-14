@@ -144,12 +144,12 @@ export class SQLiteTodoRepository implements TodoRepository {
     this.applyPriorityFilter(query.priorityRange, clauses, params)
     this.applyViewportFilter(query.viewport, clauses, params)
 
-    const { column, direction } = this.resolveSort(query)
     params.limit = query.limit ?? 500
     params.offset = query.offset ?? 0
 
     const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
-    const sql = `SELECT * FROM ${this.tableName} ${where} ORDER BY ${column} ${direction} LIMIT @limit OFFSET @offset`
+    const orderBy = this.buildOrderByClause(query)
+    const sql = `SELECT * FROM ${this.tableName} ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`
     return { sql, params }
   }
 
@@ -221,14 +221,15 @@ export class SQLiteTodoRepository implements TodoRepository {
     clauses.push('position_y BETWEEN @yMin AND @yMax')
   }
 
-  private resolveSort(query: ListTodosQuery): {
-    column: string
-    direction: 'ASC' | 'DESC'
-  } {
+  private buildOrderByClause(query: ListTodosQuery): string {
     const field = query.sort?.field ?? 'createdAt'
     const column = COLUMN_MAP[field]
     const direction = query.sort?.direction === 'desc' ? 'DESC' : 'ASC'
-    return { column, direction }
+    const segments: string[] = [`${column} ${direction}`]
+    if (column !== COLUMN_MAP.createdAt) {
+      segments.push(`${COLUMN_MAP.createdAt} ASC`)
+    }
+    return segments.join(', ')
   }
 
   private toRow(todo: Todo): TodoRow {

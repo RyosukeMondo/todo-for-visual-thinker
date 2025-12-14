@@ -100,4 +100,55 @@ describe('CreateRelationship input validation', () => {
       useCase.execute({ fromId: 'todo-1', toId: 'todo-2', type: 'related_to' }),
     ).rejects.toThrow(ValidationError)
   })
+
+  it('prevents creating circular dependencies for directional relationships', async () => {
+    const relationships = buildRelationshipRepository()
+    relationships.list = vi.fn().mockImplementation(({ fromId }) => {
+      if (fromId === 'todo-2') {
+        return Promise.resolve([
+          Relationship.create({
+            id: 'rel-existing',
+            fromId: 'todo-2',
+            toId: 'todo-3',
+            type: 'depends_on',
+          }),
+        ])
+      }
+      if (fromId === 'todo-3') {
+        return Promise.resolve([
+          Relationship.create({
+            id: 'rel-loop',
+            fromId: 'todo-3',
+            toId: 'todo-1',
+            type: 'depends_on',
+          }),
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    const { useCase } = buildUseCase({ relationships })
+
+    await expect(
+      useCase.execute({ fromId: 'todo-1', toId: 'todo-2', type: 'depends_on' }),
+    ).rejects.toThrow(ValidationError)
+  })
+
+  it('allows non-directional relationships even if cycle exists', async () => {
+    const relationships = buildRelationshipRepository()
+    relationships.list = vi.fn().mockResolvedValue([
+      Relationship.create({
+        id: 'rel-loop',
+        fromId: 'todo-2',
+        toId: 'todo-1',
+        type: 'related_to',
+      }),
+    ])
+
+    const { useCase } = buildUseCase({ relationships })
+
+    await expect(
+      useCase.execute({ fromId: 'todo-1', toId: 'todo-2', type: 'related_to' }),
+    ).resolves.toBeInstanceOf(Relationship)
+  })
 })

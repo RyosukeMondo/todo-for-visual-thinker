@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Todo } from '@/core/domain/Todo'
 import type { TodoRepository } from '@/core/ports'
@@ -101,5 +101,25 @@ describe('ListTodos use case', () => {
     await expect(
       useCase.execute({ search: 'a'.repeat(500) }),
     ).rejects.toThrow(ValidationError)
+  })
+
+  it('applies deterministic default sorting when no sort is provided', async () => {
+    const listSpy = vi.fn().mockResolvedValue([])
+    const repository = {
+      save: async () => {},
+      findById: async () => null,
+      list: listSpy,
+      delete: async () => {},
+      deleteMany: async () => {},
+    } as TodoRepository
+    const sortedUseCase = new ListTodos({ repository })
+
+    await sortedUseCase.execute()
+
+    expect(listSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sort: { field: 'priority', direction: 'desc' },
+      }),
+    )
   })
 })

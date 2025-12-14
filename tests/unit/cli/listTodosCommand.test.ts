@@ -106,6 +106,29 @@ describe('CLI list command', () => {
 
     expectErrorPayload()
   })
+
+  it('renders human-readable output when --pretty is provided', async () => {
+    const execute = vi.fn().mockResolvedValue([
+      buildTodo({
+        id: 'todo-human',
+        title: 'Sketch motion study',
+        description: 'Plan interactions',
+        status: 'in_progress',
+        priority: 4,
+        color: '#22c55e',
+        position: { x: 50, y: -40 },
+      }),
+    ])
+    const program = buildProgram(execute, io)
+
+    await program.parseAsync(buildArgs('--pretty'))
+
+    const output = stdout.read()
+    expect(output).toContain('Visual Task Board (1 task)')
+    expect(output).toContain('Sketch motion study')
+    expect(() => JSON.parse(output)).toThrow()
+    expect(stderr.read()).toBe('')
+  })
 })
 
 const expectSuccessPayload = () => {

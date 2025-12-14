@@ -47,12 +47,22 @@ export class ListTodos {
       search: this.normalizeSearch(search),
       limit: this.normalizeLimit(query.limit),
       offset: query.offset ?? 0,
-      sort: query.sort
-        ? {
-            field: query.sort.field,
-            direction: query.sort.direction ?? 'asc',
-          }
-        : undefined,
+      sort: this.normalizeSort(query.sort),
+    }
+  }
+
+  private normalizeSort(
+    sort: ListTodosInput['sort'],
+  ): NonNullable<ListTodosQuery['sort']> {
+    if (!sort) {
+      return {
+        field: 'priority',
+        direction: 'desc',
+      }
+    }
+    return {
+      field: sort.field,
+      direction: sort.direction ?? 'asc',
     }
   }
 

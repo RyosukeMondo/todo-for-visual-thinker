@@ -85,6 +85,37 @@ describe('SQLiteTodoRepository - sorting and deletion', () => {
     db.close()
   })
 
+  it('orders todos by priority desc and createdAt asc by default', async () => {
+    const earliestHigh = buildTodo({
+      id: 'todo-early-high',
+      priority: 5,
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+    })
+    const laterHigh = buildTodo({
+      id: 'todo-late-high',
+      priority: 5,
+      createdAt: new Date('2024-01-05T00:00:00.000Z'),
+    })
+    const medium = buildTodo({
+      id: 'todo-medium',
+      priority: 3,
+      createdAt: new Date('2024-01-03T00:00:00.000Z'),
+    })
+    await repository.save(medium)
+    await repository.save(laterHigh)
+    await repository.save(earliestHigh)
+
+    const ordered = await repository.list({
+      sort: { field: 'priority', direction: 'desc' },
+    })
+
+    expect(ordered.map((todo) => todo.id)).toEqual([
+      earliestHigh.id,
+      laterHigh.id,
+      medium.id,
+    ])
+  })
+
   it('sorts, paginates, and deletes todos', async () => {
     const low = buildTodo({ priority: 1 })
     const high = buildTodo({ priority: 5 })
