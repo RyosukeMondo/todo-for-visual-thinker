@@ -177,6 +177,8 @@ Load these files to understand the project:
 - `.spec-workflow/steering/design.md` - UI/UX system, accessibility guidelines
 - `.spec-workflow/steering/tech.md` - Complete technical architecture and standards
 {TASKS_MD_LINE}
+- `.spec-workflow/visual-checklist.md` - Visual features requiring human verification
+{FEEDBACK_SECTION}
 
 ### 2. Determine What to Implement
 
@@ -386,6 +388,32 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         PROMPT="${PROMPT//\{TASKS_MD_LINE\}/$TASKS_MD_LINE}"
         PROMPT="${PROMPT//\{MODE_STATUS\}/$MODE_STATUS}"
 
+        # Check for human feedback (async mailbox system)
+        FEEDBACK_FILE="$PROJECT_ROOT/.spec-workflow/feedback/pending.md"
+        if [ -f "$FEEDBACK_FILE" ]; then
+            log "📬 Human feedback detected!" "$YELLOW"
+            FEEDBACK_CONTENT=$(cat "$FEEDBACK_FILE")
+            FEEDBACK_SECTION="
+
+### ⚠️ IMPORTANT: Human Feedback Available
+
+The human has posted async feedback for you to consider:
+
+\`\`\`
+$FEEDBACK_CONTENT
+\`\`\`
+
+**Instructions:**
+- CONSIDER this feedback when deciding what to implement
+- If you address the feedback, mention it in your commit message
+- After processing, this feedback will be archived
+- Feedback is advisory - you can continue with planned work if more urgent
+"
+        else
+            FEEDBACK_SECTION=""
+        fi
+        PROMPT="${PROMPT//\{FEEDBACK_SECTION\}/$FEEDBACK_SECTION}"
+
         # Save prompt to temp file for debugging
         PROMPT_FILE="/tmp/autonomous-dev-prompt-$ITERATION.md"
         echo "$PROMPT" > "$PROMPT_FILE"
@@ -455,6 +483,15 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         0)
             log "✅ Iteration $ITERATION completed successfully" "$GREEN"
             CONSECUTIVE_FAILURES=0
+
+            # Archive feedback if it was processed (and commits were made)
+            if [ -f "$FEEDBACK_FILE" ] && [ "$COMMIT_BEFORE" != "$COMMIT_AFTER" ]; then
+                ARCHIVE_DIR="$PROJECT_ROOT/.spec-workflow/feedback/archive"
+                mkdir -p "$ARCHIVE_DIR"
+                ARCHIVE_FILE="$ARCHIVE_DIR/$(date +%Y-%m-%d-%H%M%S).md"
+                mv "$FEEDBACK_FILE" "$ARCHIVE_FILE"
+                log "📦 Feedback archived to: $(basename $ARCHIVE_FILE)" "$GREEN"
+            fi
             ;;
         99)
             echo ""

@@ -134,6 +134,38 @@ This project uses AI-driven autonomous development. See:
 ./scripts/autonomous-dev.sh -i 100 -c 5 -m gpt-5.1-codex
 ```
 
+### Async Feedback System
+
+The project includes an async feedback loop for communicating with the AI agent without blocking its progress:
+
+**Post feedback for the AI:**
+```bash
+# Quick feedback
+./scripts/post-feedback.sh "Web UI doesn't show todos from database"
+
+# With priority and type
+./scripts/post-feedback.sh --priority HIGH --type BUG "Missing canvas zoom controls"
+```
+
+**How it works:**
+1. You post feedback to `.spec-workflow/feedback/pending.md`
+2. AI checks for feedback on each iteration
+3. AI considers your feedback when planning work
+4. Processed feedback gets archived automatically
+
+**Feedback is non-blocking:**
+- AI continues normal work if feedback isn't urgent
+- You can post feedback anytime (like leaving mail)
+- AI picks it up on the next iteration
+- Multiple feedback items can accumulate
+
+**Visual features checklist:**
+- See `.spec-workflow/visual-checklist.md` for visual features requiring human verification
+- AI uses this to self-assess visual implementations
+- Update checklist with [x] when you verify features work
+
+See [`.spec-workflow/feedback/README.md`](.spec-workflow/feedback/README.md) for full documentation.
+
 ## Contributing
 
 This is an experimental project using autonomous AI development. Human contributions are welcome for:
